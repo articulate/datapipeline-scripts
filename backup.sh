@@ -15,6 +15,12 @@ sudo yum install -y postgresql$PSQL_TOOLS_VERSION
 # Take the backup
 pg_dump -Fc -h $RDS_ENDPOINT -U $RDS_USERNAME -d $DATABASE_NAME > $dump_file
 
+# Verify the dump file isn't empty before continuing
+if [ ! -s $dump_file ]
+then
+  exit 2
+fi
+
 # Upload it to s3
 aws s3 cp $dump_file s3://$S3_BUCKET/$APP_NAME/
 
@@ -27,6 +33,12 @@ aws s3 cp s3://$S3_BUCKET/$APP_NAME/$dump_file .
 # Create SQL script and remove extension comments
 pg_restore $dump_file > restore.sql
 sed -i '/COMMENT ON EXTENSION/d' restore.sql
+
+# Verify the restore file isn't empty before continuing
+if [ ! -s restore.sql ]
+then
+  exit 2
+fi
 
 # Create the RDS restore instance
 aws rds create-db-instance --db-name $DATABASE_NAME --db-instance-identifier postgres-$APP_NAME-auto-restore --db-instance-class $INSTANCE_SIZE --engine postgres --master-username $RDS_USERNAME --master-user-password $RDS_PASSWORD --vpc-security-group-ids $SECURITY_GROUP_ID --no-multi-az --storage-type gp2 --allocated-storage $STORAGE_SIZE --engine-version $PSQL_VERSION --no-publicly-accessible --db-subnet-group $SUBNET_GROUP_NAME --backup-retention-period 0
