@@ -59,6 +59,8 @@ then
   aws rds delete-db-instance --db-instance-identifier postgres-$APP_NAME-auto-restore --skip-final-snapshot
   if [ "$?" == "0" ]
   then
+    # give full control to the root user in our AWS Backup Account
+    aws s3api put-object-acl --bucket articulate-db-backups --key $APP_NAME/$dump_file --grant-full-control emailaddress=$EMAIL_ADDRESS
     # Notify DMS if successful
     curl $DMS_URL
   fi
