@@ -10,9 +10,9 @@ sudo yum install -y postgresql$PSQL_TOOLS_VERSION
 # dump the tables to CSV
 mkdir tables
 SCHEMA="public"
-psql -Atc "select tablename from pg_tables where schemaname='$SCHEMA'" $DATABASE_NAME |\
+psql -h $RDS_ENDPOINT -U $RDS_USERNAME -Atc "select tablename from pg_tables where schemaname='$SCHEMA'" -d $DATABASE_NAME |\
   while read TBL; do
-    psql -c "COPY $SCHEMA.$TBL TO STDOUT WITH CSV" $DATABASE_NAME > tables/$TBL.csv
+    psql -h $RDS_ENDPOINT -U $RDS_USERNAME -c "COPY $SCHEMA.$TBL TO STDOUT WITH CSV" -d $DATABASE_NAME > tables/$TBL.csv
   done
 
 # Upload tables to s3 and encrypt them
