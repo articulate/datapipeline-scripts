@@ -18,5 +18,5 @@ psql -Atc "select tablename from pg_tables where schemaname='$SCHEMA'" $DATABASE
 # Upload tables to s3 and encrypt them
 aws s3 cp --sse aws:kms --sse-kms-key-id alias/warehouse-pipeline tables/*.csv s3://$S3_BUCKET/$APP_NAME-warehouse-pipeline/
 
-# Delete the file
+# Delete the tables folder
 rm -rf tables
