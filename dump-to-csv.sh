@@ -15,8 +15,8 @@ psql -h $RDS_ENDPOINT -U $RDS_USERNAME -Atc "select tablename from pg_tables whe
     psql -h $RDS_ENDPOINT -U $RDS_USERNAME -c "COPY $SCHEMA.$TBL TO STDOUT WITH CSV" -d $DATABASE_NAME > tables/$TBL.csv
   done
 
-#cleanup empty tables (views) and migration tables
-rm tables/knex*.csv
+#cleanup empty tables (views) and migration tables supress error messages from removing things that don't exist
+rm tables/knex*.csv >/dev/null 2>&1 
 find tables/ -size  0 -print0 |xargs -0 rm
 
 # Upload tables to s3 and encrypt them
