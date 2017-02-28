@@ -15,6 +15,10 @@ psql -h $RDS_ENDPOINT -U $RDS_USERNAME -Atc "select tablename from pg_tables whe
     psql -h $RDS_ENDPOINT -U $RDS_USERNAME -c "COPY $SCHEMA.$TBL TO STDOUT WITH CSV" -d $DATABASE_NAME > tables/$TBL.csv
   done
 
+#cleanup empty tables (views) and migration tables
+rm tables/knex*.csv
+find tables/ -size  0 -print0 |xargs -0 rm
+
 # Upload tables to s3 and encrypt them
 aws s3 cp --sse aws:kms --sse-kms-key-id alias/warehouse-pipeline tables/*.csv s3://$S3_BUCKET/$APP_NAME-warehouse-pipeline/
 
