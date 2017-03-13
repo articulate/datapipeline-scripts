@@ -117,7 +117,7 @@ if (argv.restore) {
     }
   }
 
-  //pass the schema file to the create table and copy data functions
+  //pass the schema file to the create table functions
   for (let value in csvfiles) {
     if (csvfiles[value].includes("schema")) {
       var createTableCommand = createTable(`${csvfiles[value].split("/")[1]}`)
@@ -125,7 +125,7 @@ if (argv.restore) {
     }
   }
 
-  //copy the data into redshift
+  //pass the data files into the copyData function and execute the command
   for (let value in csvfiles) {
     if (csvfiles[value].includes("schema")) {
       //we don't want to work on the schema files here
