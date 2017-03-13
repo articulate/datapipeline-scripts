@@ -3,7 +3,7 @@ const fs = require("fs")
 const shell = require("shelljs")
 var argv = require('yargs').argv
 
-var redshift_command = `psql -h ${argv.rshost || "localhost"} -p ${argv.rsport || "5439"} -U ${argv.rsuser || "articulatedb"} -d ${argv.rsdb || "articulate"} -c`
+var redshift_command = `psql -h ${argv.rshost || "warehouse.priv"} -p ${argv.rsport || "5439"} -U ${argv.rsuser || "articulatedb"} -d ${argv.rsdb || "articulate"} -c`
 var psql_command = `psql -h ${argv.pghost || "localhost"} -p ${argv.pgport || "5432"} -U ${argv.pguser || "articulatedb"} -d "${argv.pgdb}" -Atc`
 
 //options for the csv parser
@@ -102,8 +102,6 @@ if (argv.export) {
 
 //restore action
 if (argv.restore) {
-  console.log("performing restore to redshift using the following files:")
-
   //grab a list of the files in the s3 bucket for this app
   var csvfiles = JSON.parse(shell.exec(`aws s3api list-objects --bucket ${argv.s3bucket} --prefix ${argv.app}-warehouse-pipeline --query Contents[].Key --output json`, {silent: true}).stdout)
 
@@ -145,7 +143,10 @@ if (argv.restore) {
     shell.exec(`aws s3 rm s3://${argv.s3bucket}/${csvfiles[value]}`)
   }
   //cleanup local csv files
-  shell.exec("rm *.csv")
+  try {
+    shell.exec("rm *.csv", {silent: true})
+  } catch (e) {
+  }
 }
 
 //help message
