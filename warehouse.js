@@ -6,7 +6,7 @@ var argv = require('yargs').argv
 var redshift_command = `psql -h ${argv.rshost || "localhost"} -p ${argv.rsport || "5439"} -U ${argv.rsuser || "articulatedb"} -d ${argv.rsdb || "articulate"} -c`
 var psql_command = `psql -h ${argv.pghost || "localhost"} -p ${argv.pgport || "5432"} -U ${argv.pguser || "articulatedb"} -d "${argv.pgdb}" -Atc`
 
-//options for babyparse
+//options for the csv parser
 const schemaConfig = {
   delimiter: "|",
   quoteChar: '"',
@@ -63,14 +63,17 @@ var createTable = (file) => {
 
     fields = fields.concat(`\\"${value.column_name}\\" ${final_field_type}`)
   }
+  //TODO remove the _test substring
   return(`${redshift_command} \"create table \\"${argv.app}_${file.split(".")[0].replace("_schema", "")}_test\\" (${fields.join(", ")})\"`)
 }
 
 //this builds the copyData command to be used to import the data into redshift
 var copyData = (file) => {
+  //TODO remove the _test subsctirng
   return(`${redshift_command} \"copy \\"${argv.app}_${file.split("/")[1].split(".")[0]}_test\\" from 's3://${argv.s3bucket}/${argv.app}-warehouse-pipeline/${file.split("/")[1].split(".")[0]}.csv' iam_role '${argv.iamrole}' csv delimiter '|' quote '\\"' region 'us-east-1' dateformat 'auto' IGNOREHEADER as 1\"`)
 }
 
+//export action
 if (argv.export) {
   //grab the list of tables in the psql database
   var tables = shell.exec(`${psql_command} "select tablename from pg_tables where schemaname='public'"`, {silent:true}).stdout
@@ -97,6 +100,7 @@ if (argv.export) {
   }
 }
 
+//restore action
 if (argv.restore) {
   console.log("performing restore to redshift using the following files:")
 
@@ -113,6 +117,7 @@ if (argv.restore) {
     if (csvfiles[value].includes("schema")) {
       //we don't want to work on the schema files here
     } else {
+      //TODO remove the _test substring
       shell.exec(`${redshift_command} \"drop table ${argv.app}_${csvfiles[value].split("/")[1].split(".")[0]}_test\"`)
     }
   }
@@ -143,6 +148,7 @@ if (argv.restore) {
   shell.exec("rm *.csv")
 }
 
+//help message
 if (argv.help) {
   console.log(`
      This script has two functions. It can export tables and their schemas to s3
