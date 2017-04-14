@@ -10,20 +10,25 @@ export PSQL_TOOLS_VERSION=$(echo $PSQL_VERSION | awk -F\. '{print $1$2}')
 dump_file=$APP_NAME-$(date +%Y_%m_%d_%H%M%S).sql
 
 # Install the postgres tools matching the engine version
+echo "Installing PSQL client"
 sudo yum install -y postgresql$PSQL_TOOLS_VERSION
 
 # Take the backup
+echo "Creating the database backup..."
 pg_dump -Fc -h $RDS_ENDPOINT -U $RDS_USERNAME -d $DATABASE_NAME > $dump_file
+echo "Database backup complete with ERRORLEVEL of: $?"
 
 # Verify the dump file isn't empty before continuing
+echo "Verifying dump file is not empty..."
 if [ ! -s $dump_file ]
 then
   exit 2
 fi
 
 # Upload it to s3
+echo "Uploading dump file to S3"
 aws s3 cp $dump_file s3://$S3_BUCKET/$APP_NAME/
-
+echo "S3 upload ERRORLEVEL: $?"
 # Delete the file
 rm $dump_file
 
