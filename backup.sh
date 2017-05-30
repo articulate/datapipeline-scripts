@@ -7,7 +7,7 @@ export PGPASSWORD=$RDS_PASSWORD
 
 DB_INSTANCE_IDENTIFIER=$DB_ENGINE-$DB_NAME-auto-restore
 DUMP_FILE=$SERVICE_NAME-$(date +%Y_%m_%d_%H%M%S).sql
-PSQL_TOOLS_VERSION=$(echo $PSQL_VERSION | awk -F\. '{print $1$2}')
+PSQL_TOOLS_VERSION=$(echo $DB_ENGINE_VERSION | awk -F\. '{print $1$2}')
 RESTORE_FILE=restore.sql
 
 # Install the postgres tools matching the engine version
@@ -22,13 +22,13 @@ if [ ! -s $DUMP_FILE ]; then
 fi
 
 # Upload it to s3
-aws s3 cp $DUMP_FILE s3://$S3_BUCKET/$SERVICE_NAME/
+aws s3 cp $DUMP_FILE s3://$BACKUP_BUCKET/$SERVICE_NAME/
 
 # Delete the file
 rm $DUMP_FILE
 
 # Grab it from s3 to make sure it's intact
-aws s3 cp s3://$S3_BUCKET/$SERVICE_NAME/$DUMP_FILE .
+aws s3 cp s3://$BACKUP_BUCKET/$SERVICE_NAME/$DUMP_FILE .
 
 # Create SQL script and remove extension comments
 pg_restore $DUMP_FILE > $RESTORE_FILE
