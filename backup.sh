@@ -42,7 +42,7 @@ fi
 # Create the RDS restore instance
 aws rds create-db-instance --db-name $DB_NAME --db-instance-identifier $DB_INSTANCE_IDENTIFIER --db-instance-class $RDS_INSTANCE_TYPE \
   --engine $DB_ENGINE --master-username $RDS_USERNAME --master-user-password $RDS_PASSWORD --vpc-security-group-ids $RDS_SECURITY_GROUP \
-  --no-multi-az --storage-type gp2 --allocated-storage $STORAGE_SIZE --engine-version $DB_ENGINE_VERSION --no-publicly-accessible \
+  --no-multi-az --storage-type gp2 --allocated-storage $RDS_STORAGE_SIZE --engine-version $DB_ENGINE_VERSION --no-publicly-accessible \
   --db-subnet-group $SUBNET_GROUP_NAME --backup-retention-period 0
 
 # Wait for the rds endpoint to be available before setting it
