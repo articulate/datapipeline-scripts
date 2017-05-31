@@ -1,0 +1,20 @@
+{
+  "name": "csv-to-redshift",
+  "version": "0.1.0",
+  "description": "takes csv files and puts them in redshift",
+  "main": "parse.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/articulate/datapipeline-scripts.git"
+  },
+  "author": "Dave York",
+  "bugs": {
+    "url": "https://github.com/articulate/datapipeline-scripts/issues"
+  },
+  "homepage": "https://github.com/articulate/datapipeline-scripts#readme",
+  "dependencies": {
+    "babyparse": "^0.4.6",
+    "shelljs": "^0.7.7",
+    "yargs": "^7.0.2"
+  }
+}
