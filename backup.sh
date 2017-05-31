@@ -46,7 +46,7 @@ then
 fi
 
 # Create the RDS restore instance
-aws rds create-db-instance --db-name $DATABASE_NAME --db-instance-identifier postgres-$APP_NAME-auto-restore --db-instance-class $INSTANCE_SIZE --engine postgres --master-username $RDS_USERNAME --master-user-password $RDS_PASSWORD --vpc-security-group-ids $SECURITY_GROUP_ID --no-multi-az --storage-type gp2 --allocated-storage $STORAGE_SIZE --engine-version $PSQL_VERSION --no-publicly-accessible --db-subnet-group $SUBNET_GROUP_NAME --backup-retention-period 0
+aws rds create-db-instance --db-name $DATABASE_NAME --db-instance-identifier postgres-$APP_NAME-auto-restore --db-instance-class $INSTANCE_SIZE --engine postgres --master-username $RDS_USERNAME --master-user-password $RDS_PASSWORD --vpc-security-group-ids $SECURITY_GROUP_ID --no-multi-az --storage-type gp2 --allocated-storage $RDS_STORAGE_SIZE --engine-version $PSQL_VERSION --no-publicly-accessible --db-subnet-group $SUBNET_GROUP_NAME --backup-retention-period 0
 
 # Wait for the rds endpoint to be available before setting it
 while [[ ! $(aws rds describe-db-instances --db-instance-identifier postgres-$APP_NAME-auto-restore --output=text | awk '/ENDPOINT/ {print $2}') =~ "rds.amazonaws.com" ]]
