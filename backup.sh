@@ -65,4 +65,5 @@ if [ "$?" == "0" ]; then
   fi
 else
   aws rds delete-db-instance --db-instance-identifier $DB_INSTANCE_IDENTIFIER --skip-final-snapshot
+  exit 1
 fi
