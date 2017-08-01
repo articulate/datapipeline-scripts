@@ -37,14 +37,7 @@ else
   aws s3 cp s3://$BACKUP_BUCKET/$SERVICE_NAME/$DUMP_FILE .
 
   # Create SQL script
-  pg_restore $DUMP_FILE > $RESTORE_FILE
-  
-  # Remove extensions comments without using too much disk space
-  rm $DUMP_FILE
-  gzip $RESTORE_FILE
-  gzip -dc ${RESTORE_FILE}.gz | sed -e '/COMMENT ON EXTENSION/d' | gzip -c > ${RESTORE_FILE}-edited.gz
-  mv ${RESTORE_FILE}-edited.gz ${RESTORE_FILE}.gz
-  gunzip ${RESTORE_FILE}.gz
+  pg_restore $DUMP_FILE | sed -e '/COMMENT ON EXTENSION/d' | > $RESTORE_FILE
   
   # Verify the restore file isn't empty before continuing
   if [ ! -s $RESTORE_FILE ]; then
