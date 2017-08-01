@@ -1,48 +1,48 @@
 #!/bin/bash
 
 # AWS Data Pipeline RDS backup and verification automation relying on Amazon Linux and S3
-
 export AWS_DEFAULT_REGION=us-east-1
-export PGPASSWORD=$RDS_PASSWORD
 
 DB_INSTANCE_IDENTIFIER=$DB_ENGINE-$SERVICE_NAME-auto-restore
-DUMP_FILE=$SERVICE_NAME-$(date +%Y_%m_%d_%H%M%S).sql
-PSQL_TOOLS_VERSION=$(echo $DB_ENGINE_VERSION | awk -F\. '{print $1$2}')
 RESTORE_FILE=restore.sql
 
-# Install the postgres tools matching the engine version
-sudo yum install -y postgresql$PSQL_TOOLS_VERSION
+if [ "$DB_ENGINE" == "sqlserver-se" ]; then
+  DUMP_FILE=$SERVICE_NAME-$(date +%Y_%m_%d_%H%M%S).db
+  sudo yum install docker -y
+  sudo service docker start
 
-# Take the backup
-pg_dump -Fc -h $RDS_ENDPOINT -U $RDS_USERNAME -d $DB_NAME > $DUMP_FILE
+  sudo docker run -it microsoft/mssql-server-linux /opt/mssql-tools/bin/sqlcmd -S $RDS_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q "exec msdb.dbo.rds_backup_database @source_db_name='PROD', @s3_arn_to_backup_to='arn:aws:s3:::$BACKUP_BUCKET/$SERVICE_NAME/$DUMP_FILE', @overwrite_S3_backup_file=1;"
+else
+  PSQL_TOOLS_VERSION=$(echo $DB_ENGINE_VERSION | awk -F\. '{print $1$2}')
+  DUMP_FILE=$SERVICE_NAME-$(date +%Y_%m_%d_%H%M%S).sql
 
-# Verify the dump file isn't empty before continuing
-if [ ! -s $DUMP_FILE ]; then
-  exit 2
-fi
+  # Install the postgres tools matching the engine version
+  sudo yum install -y postgresql$PSQL_TOOLS_VERSION
 
-# Upload it to s3
-aws s3 cp $DUMP_FILE s3://$BACKUP_BUCKET/$SERVICE_NAME/
+  # Take the backup
+  export PGPASSWORD=$RDS_PASSWORD
+  pg_dump -Fc -h $RDS_ENDPOINT -U $RDS_USERNAME -d $DB_NAME > $DUMP_FILE
 
-# Delete the file
-rm $DUMP_FILE
+  # Verify the dump file isn't empty before continuing
+  if [ ! -s $DUMP_FILE ]; then
+    exit 2
+  fi
+  
+  # Upload it to s3
+  aws s3 cp $DUMP_FILE s3://$BACKUP_BUCKET/$SERVICE_NAME/
+  
+  # Delete the file
+  rm $DUMP_FILE
 
-# Grab it from s3 to make sure it's intact
-aws s3 cp s3://$BACKUP_BUCKET/$SERVICE_NAME/$DUMP_FILE .
+  aws s3 cp s3://$BACKUP_BUCKET/$SERVICE_NAME/$DUMP_FILE .
 
-# Create SQL script
-pg_restore $DUMP_FILE > $RESTORE_FILE
-
-# Remove extensions comments without using too much disk space
-rm $DUMP_FILE
-gzip $RESTORE_FILE
-gzip -dc ${RESTORE_FILE}.gz | sed -e '/COMMENT ON EXTENSION/d' | gzip -c > ${RESTORE_FILE}-edited.gz
-mv ${RESTORE_FILE}-edited.gz ${RESTORE_FILE}.gz
-gunzip ${RESTORE_FILE}.gz
-
-# Verify the restore file isn't empty before continuing
-if [ ! -s $RESTORE_FILE ]; then
-  exit 2
+  # Create SQL script
+  pg_restore $DUMP_FILE | sed -e '/COMMENT ON EXTENSION/d' | > $RESTORE_FILE
+  
+  # Verify the restore file isn't empty before continuing
+  if [ ! -s $RESTORE_FILE ]; then
+    exit 2
+  fi
 fi
 
 # Create the RDS restore instance
@@ -59,7 +59,11 @@ done
 RESTORE_ENDPOINT=$(aws rds describe-db-instances --db-instance-identifier $DB_INSTANCE_IDENTIFIER --output=text | awk '/ENDPOINT/ {print $2}')
 
 # Restore the data
-psql --set ON_ERROR_STOP=on -h $RESTORE_ENDPOINT -U $RDS_USERNAME -d $DB_NAME < $RESTORE_FILE
+if [ "$DATABASE_TYPE" == "sqlserver-se" ]; then
+  sudo docker run -it microsoft/mssql-server-linux /opt/mssql-tools/bin/sqlcmd -S $RDS_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q "exec msdb.dbo.rds_restore_database @restore_db_name='PROD', @s3_arn_to_restore_from='arn:aws:s3:::$BACKUP_BUCKET/$SERVICE_NAME/$DUMP_FILE';"
+else
+  psql --set ON_ERROR_STOP=on -h $RESTORE_ENDPOINT -U $RDS_USERNAME -d $DB_NAME < $RESTORE_FILE
+fi
 
 if [ "$?" == "0" ]; then
   aws rds delete-db-instance --db-instance-identifier $DB_INSTANCE_IDENTIFIER --skip-final-snapshot
