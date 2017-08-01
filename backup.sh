@@ -37,7 +37,7 @@ else
   aws s3 cp s3://$BACKUP_BUCKET/$SERVICE_NAME/$DUMP_FILE .
 
   # Create SQL script
-  pg_restore $DUMP_FILE | sed -e '/COMMENT ON EXTENSION/d' | > $RESTORE_FILE
+  pg_restore $DUMP_FILE | sed -e '/COMMENT ON EXTENSION/d' > $RESTORE_FILE
   
   # Verify the restore file isn't empty before continuing
   if [ ! -s $RESTORE_FILE ]; then
