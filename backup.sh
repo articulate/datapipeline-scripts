@@ -16,6 +16,7 @@ if [ "$DB_ENGINE" == "sqlserver-se" ]; then
   sleep 30
 
   TASK_ID=$(sudo docker run -it microsoft/mssql-server-linux /opt/mssql-tools/bin/sqlcmd -S $RDS_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q "exec msdb.dbo.rds_backup_database @source_db_name='$DB_NAME', @s3_arn_to_backup_to='arn:aws:s3:::$BACKUP_BUCKET/$SERVICE_NAME/$DUMP_FILE', @overwrite_S3_backup_file=1;" -W -s ',' -k 1 |head -3 | csvcut -c 'task_id' | tail -1)
+  echo "Started mssql backup with TASK_ID=${TASK_ID}"
 else
   PSQL_TOOLS_VERSION=$(echo $DB_ENGINE_VERSION | awk -F\. '{print $1$2}')
   DUMP_FILE=$SERVICE_NAME-$(date +%Y_%m_%d_%H%M%S).sql
@@ -61,12 +62,13 @@ aws rds create-db-instance $OPTS --db-instance-identifier $DB_INSTANCE_IDENTIFIE
   --db-subnet-group $SUBNET_GROUP_NAME --backup-retention-period 0 --license-model $DB_LICENSE_MODEL
 
 SUCCESS=$?
+echo "Create DB exited with ${SUCCESS}"
 
 if [ "$SUCCESS" == "0" ]; then
   # Wait for the rds endpoint to be available before setting it
   while [[ ! $(aws rds describe-db-instances --db-instance-identifier $DB_INSTANCE_IDENTIFIER --query 'DBInstances[0].DBInstanceStatus' --output text) = "available" ]]; do
     echo "DB server is not online yet .. sleeping"
-  sleep 30s
+    sleep 30s
   done
 
   RESTORE_ENDPOINT=$(aws rds describe-db-instances --db-instance-identifier $DB_INSTANCE_IDENTIFIER --query 'DBInstances[0].Endpoint.Address' --output text)
@@ -81,9 +83,9 @@ if [ "$SUCCESS" == "0" ]; then
 
     BACKUP_TASK_STATUS=$(sudo docker run -it microsoft/mssql-server-linux /opt/mssql-tools/bin/sqlcmd -S $RDS_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q "exec msdb.dbo.rds_task_status @task_id='$TASK_ID'" -W -s "," -k 1 | csvcut -c "lifecycle" | tail -1)
     while [[ $BACKUP_TASK_STATUS = "CREATED" || $BACKUP_TASK_STATUS = "IN_PROGRESS" ]]; do
-        echo "Status is still $BACKUP_TASK_STATUS"
-        sleep 30s
-        BACKUP_TASK_STATUS=$(sudo docker run -it microsoft/mssql-server-linux /opt/mssql-tools/bin/sqlcmd -S $RDS_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q "exec msdb.dbo.rds_task_status @task_id='$TASK_ID'" -W -s "," -k 1 | csvcut -c "lifecycle" | tail -1)
+      echo "Status is still $BACKUP_TASK_STATUS"
+      sleep 30s
+      BACKUP_TASK_STATUS=$(sudo docker run -it microsoft/mssql-server-linux /opt/mssql-tools/bin/sqlcmd -S $RDS_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q "exec msdb.dbo.rds_task_status @task_id='$TASK_ID'" -W -s "," -k 1 | csvcut -c "lifecycle" | tail -1)
     done
     if [[ $BACKUP_TASK_STATUS = "SUCCESS" ]]; then
       echo "Backup task complete, restoring to temp db."
