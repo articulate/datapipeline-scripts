@@ -17,7 +17,7 @@ if [ "$DB_ENGINE" == "sqlserver-se" ]; then
 
   TASK_OUTPUT=$(sudo docker run -t microsoft/mssql-server-linux /opt/mssql-tools/bin/sqlcmd -S $RDS_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q "exec msdb.dbo.rds_backup_database @source_db_name='$DB_NAME', @s3_arn_to_backup_to='arn:aws:s3:::$BACKUP_BUCKET/$SERVICE_NAME/$DUMP_FILE', @overwrite_S3_backup_file=1;" -W -s ',' -k 1)
   if [ "$?" == "0" ]; then
-    TASK_ID=$(echo $TASK_OUTPUT | head -3 | csvcut -c 'task_id' | tail -1)
+    TASK_ID=$(echo "$TASK_OUTPUT" | head -3 | csvcut -c 'task_id' | tail -1)
     echo "Started mssql backup with TASK_ID=${TASK_ID}"
   else
     echo "MSSQL task could not be started"
