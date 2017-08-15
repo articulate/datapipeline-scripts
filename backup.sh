@@ -13,6 +13,7 @@ if [ "$DB_ENGINE" == "sqlserver-se" ]; then
   sudo pip install csvkit
   sudo yum install docker -y
   sudo service docker start
+  sleep 30
 
   TASK_ID=$(sudo docker run -it microsoft/mssql-server-linux /opt/mssql-tools/bin/sqlcmd -S $RDS_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q "exec msdb.dbo.rds_backup_database @source_db_name='$DB_NAME', @s3_arn_to_backup_to='arn:aws:s3:::$BACKUP_BUCKET/$SERVICE_NAME/$DUMP_FILE', @overwrite_S3_backup_file=1;" -W -s ',' -k 1 |head -3 | csvcut -c 'task_id' | tail -1)
 else
