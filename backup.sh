@@ -25,6 +25,21 @@ if [ "$DB_ENGINE" == "sqlserver-se" ]; then
     echo "$TASK_OUTPUT"
     exit 1
   fi
+
+  BACKUP_TASK_STATUS=$(sudo docker run -t microsoft/mssql-server-linux /opt/mssql-tools/bin/sqlcmd -S $RDS_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q "exec msdb.dbo.rds_task_status @task_id='$TASK_ID'" -W -s "," -k 1 | csvcut -c "lifecycle" | tail -1)
+  while [[ "$BACKUP_TASK_STATUS" == "CREATED" || $BACKUP_TASK_STATUS = "IN_PROGRESS" ]]; do
+    echo "Status is still $BACKUP_TASK_STATUS"
+    sleep 30s
+    BACKUP_TASK_STATUS=$(sudo docker run -t microsoft/mssql-server-linux /opt/mssql-tools/bin/sqlcmd -S $RDS_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q "exec msdb.dbo.rds_task_status @task_id='$TASK_ID'" -W -s "," -k 1 | csvcut -c "lifecycle" | tail -1)
+  done
+  if [[ "$BACKUP_TASK_STATUS" == "SUCCESS" ]]; then
+    echo "Backup task complete, restoring to temp db."
+    RESTORE_TASK_ID=$(sudo docker run -t microsoft/mssql-server-linux /opt/mssql-tools/bin/sqlcmd -S $RESTORE_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q "exec msdb.dbo.rds_restore_database @restore_db_name='$DB_NAME', @s3_arn_to_restore_from='arn:aws:s3:::$BACKUP_BUCKET/$SERVICE_NAME/$DUMP_FILE';" -W -s "," -k 1 |head -3 | csvcut -c "task_id" | tail -1)
+  else
+    echo "Backup task errored."
+    echo "Task status: $BACKUP_TASK_STATUS"
+    exit 1
+  fi
 else
   PSQL_TOOLS_VERSION=$(echo $DB_ENGINE_VERSION | awk -F\. '{print $1$2}')
   DUMP_FILE=$SERVICE_NAME-$(date +%Y_%m_%d_%H%M%S).sql
@@ -64,6 +79,7 @@ if [ "$DB_ENGINE" == "sqlserver-se" ]; then
 else
   OPTS="--db-name $DB_NAME"
 fi
+
 aws rds create-db-instance $OPTS --db-instance-identifier $DB_INSTANCE_IDENTIFIER --db-instance-class $RDS_INSTANCE_TYPE \
   --engine $DB_ENGINE --master-username $RDS_USERNAME --master-user-password $RDS_PASSWORD --vpc-security-group-ids $RDS_SECURITY_GROUP \
   --no-multi-az --storage-type gp2 --allocated-storage $RDS_STORAGE_SIZE --engine-version $DB_ENGINE_VERSION --no-publicly-accessible \
@@ -81,7 +97,6 @@ if [ "$SUCCESS" == "0" ]; then
 
   RESTORE_ENDPOINT=$(aws rds describe-db-instances --db-instance-identifier $DB_INSTANCE_IDENTIFIER --query 'DBInstances[0].Endpoint.Address' --output text)
 
-  # Restore the data
   if [ "$DB_ENGINE" == "sqlserver-se" ]; then
     # Wait for option group to be insync
     while [[ ! $(aws rds describe-db-instances --db-instance-identifier $DB_INSTANCE_IDENTIFIER --query 'DBInstances[0].OptionGroupMemberships[0].Status' --output text) = "in-sync" ]]; do
@@ -89,36 +104,19 @@ if [ "$SUCCESS" == "0" ]; then
       sleep 30s
     done
 
-    BACKUP_TASK_STATUS=$(sudo docker run -t microsoft/mssql-server-linux /opt/mssql-tools/bin/sqlcmd -S $RDS_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q "exec msdb.dbo.rds_task_status @task_id='$TASK_ID'" -W -s "," -k 1 | csvcut -c "lifecycle" | tail -1)
-    while [[ "$BACKUP_TASK_STATUS" == "CREATED" || $BACKUP_TASK_STATUS = "IN_PROGRESS" ]]; do
-      echo "Status is still $BACKUP_TASK_STATUS"
+    RESTORE_TASK_STATUS=$(sudo docker run -t microsoft/mssql-server-linux /opt/mssql-tools/bin/sqlcmd -S $RESTORE_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q "exec msdb.dbo.rds_task_status @task_id='$RESTORE_TASK_ID'" -W -s "," -k 1 | csvcut -c "lifecycle" | tail -1)
+    while [[ "$RESTORE_TASK_STATUS" == "CREATED" || $RESTORE_TASK_STATUS = "IN_PROGRESS" ]]; do
+      echo "Status is still $RESTORE_TASK_STATUS"
       sleep 30s
-      BACKUP_TASK_STATUS=$(sudo docker run -t microsoft/mssql-server-linux /opt/mssql-tools/bin/sqlcmd -S $RDS_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q "exec msdb.dbo.rds_task_status @task_id='$TASK_ID'" -W -s "," -k 1 | csvcut -c "lifecycle" | tail -1)
-    done
-    if [[ "$BACKUP_TASK_STATUS" == "SUCCESS" ]]; then
-      echo "Backup task complete, restoring to temp db."
-      RESTORE_TASK_ID=$(sudo docker run -t microsoft/mssql-server-linux /opt/mssql-tools/bin/sqlcmd -S $RESTORE_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q "exec msdb.dbo.rds_restore_database @restore_db_name='$DB_NAME', @s3_arn_to_restore_from='arn:aws:s3:::$BACKUP_BUCKET/$SERVICE_NAME/$DUMP_FILE';" -W -s "," -k 1 |head -3 | csvcut -c "task_id" | tail -1)
-    else
-      echo "Backup task errored."
-      echo "Task status: $BACKUP_TASK_STATUS"
-      SUCCESS=1
-    fi
-
-    if [ "$SUCCESS" == "0" ]; then
       RESTORE_TASK_STATUS=$(sudo docker run -t microsoft/mssql-server-linux /opt/mssql-tools/bin/sqlcmd -S $RESTORE_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q "exec msdb.dbo.rds_task_status @task_id='$RESTORE_TASK_ID'" -W -s "," -k 1 | csvcut -c "lifecycle" | tail -1)
-      while [[ "$RESTORE_TASK_STATUS" == "CREATED" || $RESTORE_TASK_STATUS = "IN_PROGRESS" ]]; do
-        echo "Status is still $RESTORE_TASK_STATUS"
-        sleep 30s
-        RESTORE_TASK_STATUS=$(sudo docker run -t microsoft/mssql-server-linux /opt/mssql-tools/bin/sqlcmd -S $RESTORE_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q "exec msdb.dbo.rds_task_status @task_id='$RESTORE_TASK_ID'" -W -s "," -k 1 | csvcut -c "lifecycle" | tail -1)
-      done
+    done
 
-      if [[ $RESTORE_TASK_STATUS = "SUCCESS" ]]; then
-        echo "Restore task complete."
-      else
-        echo "Restore task errored."
-        echo "Task status: $RESTORE_TASK_STATUS"
-        SUCCESS=1
-      fi
+    if [[ $RESTORE_TASK_STATUS = "SUCCESS" ]]; then
+      echo "Restore task complete."
+    else
+      echo "Restore task errored."
+      echo "Task status: $RESTORE_TASK_STATUS"
+      SUCCESS=1
     fi
   else
     psql --set ON_ERROR_STOP=on -h $RESTORE_ENDPOINT -U $RDS_USERNAME -d $DB_NAME < $RESTORE_FILE
