@@ -26,7 +26,7 @@ if [ "$DB_ENGINE" == "sqlserver-se" ]; then
     exit 1
   fi
 
-  BACKUP_TASK_STATUS=$(sudo docker run -t microsoft/mssql-server-linux /opt/mssql-tools/bin/sqlcmd -S $RDS_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q "exec msdb.dbo.rds_task_status @task_id='$TASK_ID'" -W -s "," -k 1 | csvcut -c "lifecycle" | tail -1)
+  BACKUP_TASK_STATUS=$(sudo docker run -t microsoft/mssql-server-linux:2017-latest /opt/mssql-tools/bin/sqlcmd -S $RDS_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q "exec msdb.dbo.rds_task_status @task_id='$TASK_ID'" -W -s "," -k 1 | csvcut -c "lifecycle" | tail -1)
   while [[ "$BACKUP_TASK_STATUS" == "CREATED" || $BACKUP_TASK_STATUS = "IN_PROGRESS" ]]; do
     echo "Status is still $BACKUP_TASK_STATUS"
     sleep 30s
