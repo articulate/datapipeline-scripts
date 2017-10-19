@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# set -euo pipefail
+# exit immediately if a command exit code is not 0
+# add trap to print stderr
+
 # AWS Data Pipeline RDS backup and verification automation relying on Amazon Linux and S3
 export AWS_DEFAULT_REGION=us-east-1
 
@@ -16,6 +20,8 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
   echo "Sqlserver dump. installing dependencies..."
   sudo pip install --upgrade six 1> /dev/null
   sudo pip install csvkit 1> /dev/null
+  curl -s https://packages.microsoft.com/keys/microsoft.asc > /tmp/microsoft.asc 1> /dev/null
+  sudo rpm --quiet --import /tmp/microsoft.asc
   curl -s https://packages.microsoft.com/config/rhel/6/prod.repo \
     | sudo tee -a /etc/yum.repos.d/msprod.repo 1> /dev/null
   sudo ACCEPT_EULA=Y yum -y install msodbcsql-13.0.1.0-1 mssql-tools-14.0.2.0-1 1> /dev/null
@@ -59,9 +65,9 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
   done
 
   if [[ "$BACKUP_TASK_STATUS" == "SUCCESS" ]]; then
-    echo "Backup task complete, restoring to temp db."
+    echo "...Backup task complete, restoring to temp db."
   else
-    echo "Backup task errored."
+    echo "...Backup task errored."
     echo "Task status: $BACKUP_TASK_STATUS"
     exit 1
   fi
@@ -75,22 +81,32 @@ else # Our default db is Postgres
   aws configure set s3.signature_version s3v4
 
   # Install the postgres tools matching the engine version
-  echo "Postgres dump. installing dependencies...\n"
+  echo "Postgres dump. installing dependencies..."
   sudo yum install -y postgresql$PSQL_TOOLS_VERSION 1> /dev/null
-  echo "...Done\n"
+  echo "...Done"
 
   # Take the backup
+  echo "Taking the backup..."
   export PGPASSWORD=$RDS_PASSWORD
-  pg_dump -Fc -h $RDS_ENDPOINT -U $RDS_USERNAME -d $DB_NAME > $DUMP_FILE
-  # ret_code
+  ERROR=$(pg_dump -Fc -h $RDS_ENDPOINT -U $RDS_USERNAME -d $DB_NAME -f $DUMP_FILE 2>&1)
+  ret_code=$?
+
+  if [ $ret_code != 0 ]; then
+    echo "...Error taking the backup"
+    echo $ERROR
+    exit $ret_code
+  fi
+
+  echo "...Done"
 
   # Verify the dump file isn't empty before continuing
   if [ ! -s $DUMP_FILE ]; then
+    echo "Error dump file has no data"
     exit 2
   fi
 
   # Upload it to s3
-  # the command stdout & stderr is the value of the ERROR var
+  echo "Copying dump file to s3..."
   ERROR=$(aws s3 cp $DUMP_FILE s3://$BACKUP_BUCKET/$SERVICE_NAME/ 2>&1)
   ret_code=$?
 
@@ -98,21 +114,25 @@ else # Our default db is Postgres
   rm -f $DUMP_FILE
 
   if [ $ret_code != 0 ]; then
-    echo "Error copying dump file to s3 aborting..."
+    echo "...Error copying dump file to s3. Aborting"
     echo $ERROR
     exit $ret_code
   fi
 
+  echo "...Done"
+
   # Copy dump from s3 to restore to temp db
-  # the command stdout & stderr is the value of the ERROR var
+  echo "Downloading dump file from s3..."
   ERROR=$(aws s3 cp s3://$BACKUP_BUCKET/$SERVICE_NAME/$DUMP_FILE . 2>&1)
   ret_code=$?
 
   if [ $ret_code != 0 ]; then
-    echo "Error copying s3 dump file from s3 aborting..."
+    echo "...Error s3 dump download from s3. Aborting"
     echo $ERROR
     exit $ret_code
   fi
+
+  echo "...Done"
 
   # Create SQL script
   pg_restore $DUMP_FILE | sed -e '/COMMENT ON EXTENSION/d' > $RESTORE_FILE
@@ -120,8 +140,10 @@ else # Our default db is Postgres
 
   # Verify the restore file isn't empty before continuing
   if [ ! -s $RESTORE_FILE ]; then
+    echo "Error dump file downloaded from s3 has no data"
     exit 2
   fi
+
 fi
 
 # Create the RDS restore instance
@@ -135,8 +157,17 @@ fi
 
 # Use trap to delete the restore instance when the script exits
 function delete_restore_instance {
-  aws rds delete-db-instance --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
-  --skip-final-snapshot
+  echo "Deleting restore DB instance $DB_INSTANCE_IDENTIFIER..."
+  ERROR=$(aws rds delete-db-instance --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
+  --skip-final-snapshot 2>&1 > /dev/null)
+  ret_code=$?
+
+  if [ $ret_code != 0 ]; then
+    echo "...Error deleting restore DB database"
+    echo $ERROR
+  else
+    echo "...Done"
+  fi
 }
 
 trap delete_restore_instance EXIT
@@ -161,7 +192,7 @@ CREATE_DB_RESTORE=$(aws rds create-db-instance $OPTS \
 ret_code=$?
 
 if [[ $ret_code != 0 ]]; then
-  echo "Error Creating DB restore instance..."
+  echo "...Error Creating DB restore instance"
   echo $CREATE_DB_RESTORE
   exit $ret_code
 fi
@@ -175,11 +206,11 @@ function rds_status {
 }
 
 while [[ ! $(rds_status) == "available" ]]; do
-  echo "DB server is not online yet .. sleeping"
+  echo "DB server is not online yet ... sleeping"
   sleep 30s
 done
 
-echo "DB restore instance created"
+echo "...DB restore instance created"
 
 # Our restore DB Address
 RESTORE_ENDPOINT=$(aws rds describe-db-instances \
@@ -197,7 +228,7 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
   }
 
   while [[ ! $(rds_option_group) == "in-sync" ]]; do
-    echo "Option group membership not in sync .. sleeping"
+    echo "Option group membership not in sync ... sleeping"
     sleep 30s
   done
 
@@ -239,26 +270,42 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
   done
 
   if [[ $RESTORE_TASK_STATUS == "SUCCESS" ]]; then
-    echo "Restore task complete..."
+    echo "...Restore task complete"
   else
     echo "Restore task errored..."
     echo "Task status: $RESTORE_TASK_STATUS"
     exit 1
   fi
 
-else
-  psql --set ON_ERROR_STOP=on -h $RESTORE_ENDPOINT -U $RDS_USERNAME -d $DB_NAME < $RESTORE_FILE
+else # Restore Postgres db
+
+  echo "Restoring Postgres backup..."
+  ERROR=$(psql --set ON_ERROR_STOP=on -h $RESTORE_ENDPOINT -U $RDS_USERNAME -d $DB_NAME < $RESTORE_FILE 2>&1)
   ret_code=$?
 
   if [[ $ret_code != 0 ]]; then
-    echo "Error Restoring DB..."
+    echo "...Error Restoring DB"
+    echo $ERROR
     exit $ret_code
   fi
+
+  echo "...Done"
+
 fi
 
 # Give full control to the root user in our AWS Backup Account
-aws s3api put-object-acl --bucket articulate-db-backups --key $SERVICE_NAME/$DUMP_FILE \
-  --grant-full-control emailaddress=$AWS_EMAIL_ADDRESS
+echo "Copying backup dump to AWS Backup Account..."
+ERROR=$(aws s3api put-object-acl --bucket articulate-db-backups --key $SERVICE_NAME/$DUMP_FILE \
+  --grant-full-control emailaddress=$AWS_EMAIL_ADDRESS 2>&1)
+ret_code=$?
+
+if [[ $ret_code != 0 ]]; then
+  echo "...Error copying dump"
+  echo $ERROR
+  exit $ret_code
+fi
+
+echo "...Done"
 
 # Check in on success
 curl $CHECK_IN_URL
