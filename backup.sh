@@ -1,8 +1,7 @@
 #!/bin/bash
 
-# set -euo pipefail
-# exit immediately if a command exit code is not 0
-# add trap to print stderr
+# exit immediately if a command exit code is not 0 or a variable is undefined
+set -euo pipefail
 
 # AWS Data Pipeline RDS backup and verification automation relying on Amazon Linux and S3
 export AWS_DEFAULT_REGION=us-east-1
@@ -12,42 +11,64 @@ DB_INSTANCE_IDENTIFIER=$DB_ENGINE-$SERVICE_NAME-auto-restore
 DUMP=$SERVICE_NAME-$(date +%Y_%m_%d_%H%M%S)
 RESTORE_FILE=restore.sql
 
+# Use trap to print the most recent error message & delete the restore instance
+# when the script exits
+function cleanup_on_exit {
+
+  echo "Trap EXIT called..."
+  echo "Check stderr for the exit error message"
+
+  # if restore instance exists, delete it
+  ERROR=$(aws rds describe-db-instances --db-instance-identifier $DB_INSTANCE_IDENTIFIER 2>&1)
+  ret_code=$?
+
+  if [[ $ret_code == 0 ]]; then 
+    echo "Deleting restore DB instance $DB_INSTANCE_IDENTIFIER..."
+    ERROR=$(aws rds delete-db-instance --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
+      --skip-final-snapshot 2>&1)
+    ret_code=$?
+  fi
+
+  if [[ $ret_code != 0 ]]; then
+    echo $ERROR
+    exit $ret_code
+  fi
+
+}
+
+trap cleanup_on_exit EXIT
+
 if [[ $DB_ENGINE == "sqlserver-se" ]]; then
 
   DUMP_FILE=$DUMP.db
 
   # Install sqlcmd microsoft client libs & cvskit
   echo "Sqlserver dump. installing dependencies..."
-  sudo pip install --upgrade six 1> /dev/null
-  sudo pip install csvkit 1> /dev/null
-  curl -s https://packages.microsoft.com/keys/microsoft.asc > /tmp/microsoft.asc 1> /dev/null
+  sudo pip install --upgrade six > /dev/null
+  sudo pip install csvkit > /dev/null
+  curl -s https://packages.microsoft.com/keys/microsoft.asc > /tmp/microsoft.asc > /dev/null
   sudo rpm --quiet --import /tmp/microsoft.asc
   curl -s https://packages.microsoft.com/config/rhel/6/prod.repo \
-    | sudo tee -a /etc/yum.repos.d/msprod.repo 1> /dev/null
-  sudo ACCEPT_EULA=Y yum -y install msodbcsql-13.0.1.0-1 mssql-tools-14.0.2.0-1 1> /dev/null
+    | sudo tee /etc/yum.repos.d/msprod.repo > /dev/null
+  sudo ACCEPT_EULA=Y yum -y install msodbcsql-13.0.1.0-1 mssql-tools-14.0.2.0-1 > /dev/null
   echo "...Done"
 
   # Run backup and capture the backup task status
+  echo "Start the Mssql backup..."
   TASK_OUTPUT=$($SQLCMD -S $RDS_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q \
     "exec msdb.dbo.rds_backup_database @source_db_name='$DB_NAME', \
     @s3_arn_to_backup_to='arn:aws:s3:::$BACKUP_BUCKET/$SERVICE_NAME/$DUMP_FILE', \
-    @overwrite_S3_backup_file=1;" -W -s ',' -k 1 2>&1)
-  ret_code=$?
+    @overwrite_S3_backup_file=1;" -W -s ',' -k 1)
 
-  if [[ $ret_code == 0 ]]; then
-    # Get the task id of the backup task status
-    TASK_ID=$(echo "$TASK_OUTPUT" | csvcut -c "task_id" | grep "Task Id" | grep -oE "[^:][0-9]$" 2>&1)
-    if [[ -n $TASK_ID ]]; then
-      echo "Started mssql backup with TASK_ID: $TASK_ID"
-    else
-      echo "Backup error getting TASK_ID. Aborting."
-      echo $TASK_ID
-      exit 1
-    fi
+  # Get the task id of the backup task status
+  echo "Get the task id..."
+  TASK_ID=$(echo "$TASK_OUTPUT" | csvcut -c "task_id" | grep "Task Id" | grep -oE "[^:][0-9]$")
+  if [[ -n $TASK_ID ]]; then
+    echo "Started mssql backup with task id: $TASK_ID"
   else
-    echo "MSSQL backup task could not be started"
-    echo $TASK_OUTPUT
-    exit $ret_code
+    echo "Error getting task id. Aborting."
+    echo $TASK_ID
+    exit 1
   fi
 
   # Wait until backup status is SUCCESS before continuing
@@ -82,64 +103,45 @@ else # Our default db is Postgres
 
   # Install the postgres tools matching the engine version
   echo "Postgres dump. installing dependencies..."
-  sudo yum install -y postgresql$PSQL_TOOLS_VERSION 1> /dev/null
+  sudo yum install -y postgresql$PSQL_TOOLS_VERSION > /dev/null
   echo "...Done"
 
   # Take the backup
   echo "Taking the backup..."
   export PGPASSWORD=$RDS_PASSWORD
-  ERROR=$(pg_dump -Fc -h $RDS_ENDPOINT -U $RDS_USERNAME -d $DB_NAME -f $DUMP_FILE 2>&1)
-  ret_code=$?
-
-  if [ $ret_code != 0 ]; then
-    echo "...Error taking the backup"
-    echo $ERROR
-    exit $ret_code
-  fi
+  pg_dump -Fc -h $RDS_ENDPOINT -U $RDS_USERNAME -d $DB_NAME -f $DUMP_FILE
 
   echo "...Done"
 
   # Verify the dump file isn't empty before continuing
-  if [ ! -s $DUMP_FILE ]; then
+  if [[ ! -s $DUMP_FILE ]]; then
     echo "Error dump file has no data"
     exit 2
   fi
 
   # Upload it to s3
   echo "Copying dump file to s3..."
-  ERROR=$(aws s3 cp $DUMP_FILE s3://$BACKUP_BUCKET/$SERVICE_NAME/ 2>&1)
-  ret_code=$?
+  aws s3 cp $DUMP_FILE s3://$BACKUP_BUCKET/$SERVICE_NAME/
 
   # Delete the file
   rm -f $DUMP_FILE
-
-  if [ $ret_code != 0 ]; then
-    echo "...Error copying dump file to s3. Aborting"
-    echo $ERROR
-    exit $ret_code
-  fi
 
   echo "...Done"
 
   # Copy dump from s3 to restore to temp db
   echo "Downloading dump file from s3..."
-  ERROR=$(aws s3 cp s3://$BACKUP_BUCKET/$SERVICE_NAME/$DUMP_FILE . 2>&1)
-  ret_code=$?
-
-  if [ $ret_code != 0 ]; then
-    echo "...Error s3 dump download from s3. Aborting"
-    echo $ERROR
-    exit $ret_code
-  fi
+  aws s3 cp s3://$BACKUP_BUCKET/$SERVICE_NAME/$DUMP_FILE .
 
   echo "...Done"
 
   # Create SQL script
+  echo "Exapanding & removing COMMENT ON EXTENSION from dump file..."
   pg_restore $DUMP_FILE | sed -e '/COMMENT ON EXTENSION/d' > $RESTORE_FILE
-  # ret_code
+
+  echo "...Done"
 
   # Verify the restore file isn't empty before continuing
-  if [ ! -s $RESTORE_FILE ]; then
+  if [[ ! -s $RESTORE_FILE ]]; then
     echo "Error dump file downloaded from s3 has no data"
     exit 2
   fi
@@ -155,26 +157,9 @@ else
   OPTS="--db-name $DB_NAME"
 fi
 
-# Use trap to delete the restore instance when the script exits
-function delete_restore_instance {
-  echo "Deleting restore DB instance $DB_INSTANCE_IDENTIFIER..."
-  ERROR=$(aws rds delete-db-instance --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
-  --skip-final-snapshot 2>&1 > /dev/null)
-  ret_code=$?
-
-  if [ $ret_code != 0 ]; then
-    echo "...Error deleting restore DB database"
-    echo $ERROR
-  else
-    echo "...Done"
-  fi
-}
-
-trap delete_restore_instance EXIT
-
 echo "Create DB restore instance..."
 
-CREATE_DB_RESTORE=$(aws rds create-db-instance $OPTS \
+aws rds create-db-instance $OPTS \
   --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
   --db-instance-class $RDS_INSTANCE_TYPE \
   --engine $DB_ENGINE \
@@ -188,14 +173,7 @@ CREATE_DB_RESTORE=$(aws rds create-db-instance $OPTS \
   --no-publicly-accessible \
   --db-subnet-group $SUBNET_GROUP_NAME \
   --backup-retention-period 0 \
-  --license-model $DB_LICENSE_MODEL 2>&1)
-ret_code=$?
-
-if [[ $ret_code != 0 ]]; then
-  echo "...Error Creating DB restore instance"
-  echo $CREATE_DB_RESTORE
-  exit $ret_code
-fi
+  --license-model $DB_LICENSE_MODEL > /dev/null
 
 # Wait for the rds endpoint to be available before restoring to it
 function rds_status {
@@ -233,32 +211,26 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
   done
 
   # Run restore and capture the task status
+  echo "Start the Mssql restore..."
   RES_TASK_OUTPUT=$($SQLCMD -S $RESTORE_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q \
     "exec msdb.dbo.rds_restore_database @restore_db_name='$DB_NAME', \
     @s3_arn_to_restore_from='arn:aws:s3:::$BACKUP_BUCKET/$SERVICE_NAME/$DUMP_FILE';" \
-    -W -s ',' -k 1 2>&1)
-  ret_code=$?
+    -W -s ',' -k 1)
 
-  if [[ $ret_code == 0 ]]; then
-    # Get the task id of the restore task status
-    RES_TASK_ID=$(echo "$RES_TASK_OUTPUT" | csvcut -c "task_id" | grep "Task Id" | grep -oE "[^:][0-9]$" 2>&1)
-    if [[ -n $RES_TASK_ID ]]; then
-      echo "Started mssql restore with TASK_ID: $TASK_ID"
-    else
-      echo "Restore error getting TASK_ID. Aborting."
-      echo $TASK_ID
-      exit 1
-    fi
+  # Get the task id of the restore task status
+  echo "Get the task id..."
+  RES_TASK_ID=$(echo "$RES_TASK_OUTPUT" | csvcut -c "task_id" | grep "Task Id" | grep -oE "[^:][0-9]$")
+  if [[ -n $RES_TASK_ID ]]; then
+    echo "Started mssql restore with task id: $RES_TASK_ID"
   else
-    echo "MSSQL restore task could not be started"
-    echo $TASK_OUTPUT
-    exit $ret_code
+    echo "Error getting task id. Aborting."
+    exit 1
   fi
 
   # Wait until restore status is SUCCESS before continuing
   function restore_task_status {
     $SQLCMD -S $RESTORE_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q \
-    "exec msdb.dbo.rds_task_status @task_id='$RESTORE_TASK_ID'" -W -s "," -k 1 \
+    "exec msdb.dbo.rds_task_status @task_id='$RES_TASK_ID'" -W -s "," -k 1 \
     | csvcut -c "lifecycle" | tail -1
   }
 
@@ -280,14 +252,7 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
 else # Restore Postgres db
 
   echo "Restoring Postgres backup..."
-  ERROR=$(psql --set ON_ERROR_STOP=on -h $RESTORE_ENDPOINT -U $RDS_USERNAME -d $DB_NAME < $RESTORE_FILE 2>&1)
-  ret_code=$?
-
-  if [[ $ret_code != 0 ]]; then
-    echo "...Error Restoring DB"
-    echo $ERROR
-    exit $ret_code
-  fi
+  psql --set ON_ERROR_STOP=on -h $RESTORE_ENDPOINT -U $RDS_USERNAME -d $DB_NAME < $RESTORE_FILE
 
   echo "...Done"
 
@@ -295,15 +260,8 @@ fi
 
 # Give full control to the root user in our AWS Backup Account
 echo "Copying backup dump to AWS Backup Account..."
-ERROR=$(aws s3api put-object-acl --bucket articulate-db-backups --key $SERVICE_NAME/$DUMP_FILE \
-  --grant-full-control emailaddress=$AWS_EMAIL_ADDRESS 2>&1)
-ret_code=$?
-
-if [[ $ret_code != 0 ]]; then
-  echo "...Error copying dump"
-  echo $ERROR
-  exit $ret_code
-fi
+aws s3api put-object-acl --bucket articulate-db-backups --key $SERVICE_NAME/$DUMP_FILE \
+  --grant-full-control emailaddress=$AWS_EMAIL_ADDRESS
 
 echo "...Done"
 
