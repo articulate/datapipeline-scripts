@@ -16,7 +16,7 @@ RESTORE_FILE=restore.sql
 function cleanup_on_exit {
 
   echo "Trap EXIT called..."
-  echo "Check stderr for the exit error message"
+  echo "If this script exited prematurely, check stderr for the exit error message"
 
   # if restore instance exists, delete it
   ERROR=$(aws rds describe-db-instances --db-instance-identifier $DB_INSTANCE_IDENTIFIER 2>&1)
@@ -46,7 +46,7 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
   echo "Sqlserver dump. installing dependencies..."
   sudo pip install --upgrade six > /dev/null
   sudo pip install csvkit > /dev/null
-  curl -s https://packages.microsoft.com/keys/microsoft.asc > /tmp/microsoft.asc > /dev/null
+  curl -s https://packages.microsoft.com/keys/microsoft.asc | tee /tmp/microsoft.asc > /dev/null
   sudo rpm --quiet --import /tmp/microsoft.asc
   curl -s https://packages.microsoft.com/config/rhel/6/prod.repo \
     | sudo tee /etc/yum.repos.d/msprod.repo > /dev/null
@@ -135,7 +135,7 @@ else # Our default db is Postgres
   echo "...Done"
 
   # Create SQL script
-  echo "Exapanding & removing COMMENT ON EXTENSION from dump file..."
+  echo "Expanding & removing COMMENT ON EXTENSION from dump file..."
   pg_restore $DUMP_FILE | sed -e '/COMMENT ON EXTENSION/d' > $RESTORE_FILE
 
   echo "...Done"
