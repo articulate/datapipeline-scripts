@@ -97,6 +97,7 @@ else # Our default db is Postgres
 
   PSQL_TOOLS_VERSION=$(echo $DB_ENGINE_VERSION | awk -F\. '{print $1$2}')
   DUMP_FILE=$DUMP.sql
+  SSE="--sse aws:kms --sse-kms-key-id $KMS_KEY"
 
   # Enable s3 signature version v4 (for aws bucket server side encryption)
   aws configure set s3.signature_version s3v4
@@ -110,7 +111,6 @@ else # Our default db is Postgres
   echo "Taking the backup..."
   export PGPASSWORD=$RDS_PASSWORD
   pg_dump -Fc -h $RDS_ENDPOINT -U $RDS_USERNAME -d $DB_NAME -f $DUMP_FILE
-
   echo "...Done"
 
   # Verify the dump file isn't empty before continuing
@@ -121,23 +121,20 @@ else # Our default db is Postgres
 
   # Upload it to s3
   echo "Copying dump file to s3..."
-  aws s3 cp $DUMP_FILE s3://$BACKUP_BUCKET/$SERVICE_NAME/
+  aws s3 cp $SSE $DUMP_FILE s3://$BACKUP_BUCKET/$SERVICE_NAME/
 
   # Delete the file
   rm -f $DUMP_FILE
-
   echo "...Done"
 
   # Copy dump from s3 to restore to temp db
   echo "Downloading dump file from s3..."
-  aws s3 cp s3://$BACKUP_BUCKET/$SERVICE_NAME/$DUMP_FILE .
-
+  aws s3 cp $SSE s3://$BACKUP_BUCKET/$SERVICE_NAME/$DUMP_FILE .
   echo "...Done"
 
   # Create SQL script
   echo "Expanding & removing COMMENT ON EXTENSION from dump file..."
   pg_restore $DUMP_FILE | sed -e '/COMMENT ON EXTENSION/d' > $RESTORE_FILE
-
   echo "...Done"
 
   # Verify the restore file isn't empty before continuing
@@ -253,7 +250,6 @@ else # Restore Postgres db
 
   echo "Restoring Postgres backup..."
   psql --set ON_ERROR_STOP=on -h $RESTORE_ENDPOINT -U $RDS_USERNAME -d $DB_NAME < $RESTORE_FILE
-
   echo "...Done"
 
 fi
@@ -262,7 +258,6 @@ fi
 echo "Copying backup dump to AWS Backup Account..."
 aws s3api put-object-acl --bucket articulate-db-backups --key $SERVICE_NAME/$DUMP_FILE \
   --grant-full-control emailaddress=$AWS_EMAIL_ADDRESS
-
 echo "...Done"
 
 # Check in on success
