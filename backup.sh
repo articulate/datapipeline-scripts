@@ -1,15 +1,11 @@
 #!/bin/bash
 
+# AWS Data Pipeline RDS backup and verification automation relying on Amazon Linux and S3
+
 # exit immediately if a command exit code is not 0 or a variable is undefined
 set -euo pipefail
 
-# AWS Data Pipeline RDS backup and verification automation relying on Amazon Linux and S3
 export AWS_DEFAULT_REGION=us-east-1
-
-SQLCMD=/opt/mssql-tools/bin/sqlcmd-13.0.1.0
-DB_INSTANCE_IDENTIFIER=$DB_ENGINE-$SERVICE_NAME-auto-restore
-DUMP=$SERVICE_NAME-$(date +%Y_%m_%d_%H%M%S)
-RESTORE_FILE=restore.sql
 
 # Use trap to print the most recent error message & delete the restore instance
 # when the script exits
@@ -20,23 +16,29 @@ function cleanup_on_exit {
 
   # if restore instance exists, delete it
   ERROR=$(aws rds describe-db-instances --db-instance-identifier $DB_INSTANCE_IDENTIFIER 2>&1)
-  ret_code=$?
+  RET_CODE=$?
 
-  if [[ $ret_code == 0 ]]; then 
+  if [[ $RET_CODE == 0 ]]; then
     echo "Deleting restore DB instance $DB_INSTANCE_IDENTIFIER..."
     ERROR=$(aws rds delete-db-instance --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
       --skip-final-snapshot 2>&1)
-    ret_code=$?
+    RET_CODE=$?
   fi
 
-  if [[ $ret_code != 0 ]]; then
+  # this if statement is a catch all for any errors with the restore instance db deletion
+  if [[ $RET_CODE != 0 ]]; then
     echo $ERROR
-    exit $ret_code
+    exit $RET_CODE
   fi
 
 }
 
 trap cleanup_on_exit EXIT
+
+SQLCMD=/opt/mssql-tools/bin/sqlcmd-13.0.1.0
+DB_INSTANCE_IDENTIFIER=$DB_ENGINE-$SERVICE_NAME-auto-restore
+DUMP=$SERVICE_NAME-$(date +%Y_%m_%d_%H%M%S)
+RESTORE_FILE=restore.sql
 
 if [[ $DB_ENGINE == "sqlserver-se" ]]; then
 
@@ -255,10 +257,12 @@ else # Restore Postgres db
 fi
 
 # Give full control to the root user in our AWS Backup Account
-echo "Copying backup dump to AWS Backup Account..."
+echo "Grant full control of dump file to AWS Backup Account..."
 aws s3api put-object-acl --bucket articulate-db-backups --key $SERVICE_NAME/$DUMP_FILE \
   --grant-full-control emailaddress=$AWS_EMAIL_ADDRESS
 echo "...Done"
 
 # Check in on success
+echo "Checkin to snitch..."
 curl $CHECK_IN_URL
+echo "...Done"
