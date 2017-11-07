@@ -64,7 +64,7 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
 
   # Get the task id of the backup task status
   echo "Get the task id..."
-  TASK_ID=$(echo "$TASK_OUTPUT" | csvcut -c "task_id" | grep "Task Id" | grep -oE "[^:][0-9]$")
+  TASK_ID=$(echo "$TASK_OUTPUT" | csvcut -c "task_id" | grep "Task Id" | grep -o "[0-9]*")
   if [[ -n $TASK_ID ]]; then
     echo "Started mssql backup with task id: $TASK_ID"
   else
@@ -218,7 +218,7 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
 
   # Get the task id of the restore task status
   echo "Get the task id..."
-  RES_TASK_ID=$(echo "$RES_TASK_OUTPUT" | csvcut -c "task_id" | grep "Task Id" | grep -oE "[^:][0-9]$")
+  RES_TASK_ID=$(echo "$RES_TASK_OUTPUT" | csvcut -c "task_id" | grep "Task Id" | grep -o "[0-9]*")
   if [[ -n $RES_TASK_ID ]]; then
     echo "Started mssql restore with task id: $RES_TASK_ID"
   else
