@@ -83,7 +83,7 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
   BACKUP_TASK_STATUS=$(backup_task_status)
   while [[ $BACKUP_TASK_STATUS =~ (^CREATED$|^IN_PROGRESS$) ]]; do
     echo "Backup status is $BACKUP_TASK_STATUS..."
-    sleep 30s
+    sleep 60s
     BACKUP_TASK_STATUS=$(backup_task_status)
   done
 
@@ -123,7 +123,7 @@ else # Our default db is Postgres
 
   # Upload it to s3
   echo "Copying dump file to s3..."
-  aws s3 cp $SSE $DUMP_FILE s3://$BACKUP_BUCKET/$SERVICE_NAME/
+  aws s3 cp $SSE --only-show-errors $DUMP_FILE s3://$BACKUP_BUCKET/$SERVICE_NAME/
 
   # Delete the file
   rm -f $DUMP_FILE
@@ -131,7 +131,7 @@ else # Our default db is Postgres
 
   # Copy dump from s3 to restore to temp db
   echo "Downloading dump file from s3..."
-  aws s3 cp $SSE s3://$BACKUP_BUCKET/$SERVICE_NAME/$DUMP_FILE .
+  aws s3 cp $SSE --only-show-errors s3://$BACKUP_BUCKET/$SERVICE_NAME/$DUMP_FILE .
   echo "...Done"
 
   # Create SQL script
@@ -184,7 +184,7 @@ function rds_status {
 
 while [[ ! $(rds_status) == "available" ]]; do
   echo "DB server is not online yet ... sleeping"
-  sleep 30s
+  sleep 60s
 done
 
 echo "...DB restore instance created"
@@ -206,7 +206,7 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
 
   while [[ ! $(rds_option_group) == "in-sync" ]]; do
     echo "Option group membership not in sync ... sleeping"
-    sleep 30s
+    sleep 60s
   done
 
   # Run restore and capture the task status
@@ -236,7 +236,7 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
   RESTORE_TASK_STATUS=$(restore_task_status)
   while [[ $RESTORE_TASK_STATUS =~ (^CREATED$|^IN_PROGRESS$) ]]; do
     echo "Status is still $RESTORE_TASK_STATUS..."
-    sleep 30s
+    sleep 60s
     RESTORE_TASK_STATUS=$(restore_task_status)
   done
 
