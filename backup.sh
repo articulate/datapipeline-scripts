@@ -81,9 +81,14 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
   }
 
   BACKUP_TASK_STATUS=$(backup_task_status)
+  echo "Backup status is $BACKUP_TASK_STATUS..."
+  TEMP_BACKUP_STATUS=$BACKUP_TASK_STATUS
   while [[ $BACKUP_TASK_STATUS =~ (^CREATED$|^IN_PROGRESS$) ]]; do
-    echo "Backup status is $BACKUP_TASK_STATUS..."
-    sleep 60s
+    if [[ $BACKUP_TASK_STATUS != $TEMP_BACKUP_STATUS ]]; then
+      echo "Backup status is $BACKUP_TASK_STATUS..."
+    fi
+    TEMP_BACKUP_STATUS=$BACKUP_TASK_STATUS
+    sleep 30s
     BACKUP_TASK_STATUS=$(backup_task_status)
   done
 
@@ -234,9 +239,14 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
   }
 
   RESTORE_TASK_STATUS=$(restore_task_status)
+  echo "Restore status is $RESTORE_TASK_STATUS..."
+  TEMP_RESTORE_STATUS=$RESTORE_TASK_STATUS
   while [[ $RESTORE_TASK_STATUS =~ (^CREATED$|^IN_PROGRESS$) ]]; do
-    echo "Status is still $RESTORE_TASK_STATUS..."
-    sleep 60s
+    if [[ $RESTORE_TASK_STATUS != $TEMP_RESTORE_STATUS ]]; then
+      echo "Restore status is $RESTORE_TASK_STATUS..."
+    fi
+    TEMP_RESTORE_STATUS=$RESTORE_TASK_STATUS
+    sleep 30s
     RESTORE_TASK_STATUS=$(restore_task_status)
   done
 
