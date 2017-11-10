@@ -62,6 +62,12 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
     @s3_arn_to_backup_to='arn:aws:s3:::$BACKUP_BUCKET/$SERVICE_NAME/$DUMP_FILE', \
     @overwrite_S3_backup_file=1;" -W -s ',' -k 1)
 
+  # Error (to stderr) if a backup task is already running
+  if [[ $(echo $TASK_OUTPUT | grep "A task has already been issued for database") ]]; then
+    (>&2 echo $TASK_OUTPUT)
+    exit 1
+  fi
+
   # Get the task id of the backup task status
   echo "Get the task id..."
   TASK_ID=$(echo "$TASK_OUTPUT" | csvcut -c "task_id" | grep "Task Id" | grep -o "[0-9]*")
