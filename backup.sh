@@ -183,6 +183,8 @@ aws rds create-db-instance $OPTS \
   --no-publicly-accessible \
   --db-subnet-group $SUBNET_GROUP_NAME \
   --backup-retention-period 0 \
+  --storage-encrypted \
+  --kms-key-id $RDS_KMS_KEY \
   --license-model $DB_LICENSE_MODEL > /dev/null
 
 # Wait for the rds endpoint to be available before restoring to it
