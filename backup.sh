@@ -167,9 +167,16 @@ else
   OPTS="--db-name $DB_NAME"
 fi
 
+# RDS encryption specific options
+if [[ $RDS_INSTANCE_TYPE != "db.t2.micro" ]]; then
+  ENCRYPTION="--storage-encrypted --kms-key-id $RDS_KMS_KEY"
+else
+  ENCRYPTION=""
+fi
+
 echo "Create DB restore instance..."
 
-aws rds create-db-instance $OPTS \
+aws rds create-db-instance $OPTS $ENCRYPTION \
   --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
   --db-instance-class $RDS_INSTANCE_TYPE \
   --engine $DB_ENGINE \
@@ -183,8 +190,6 @@ aws rds create-db-instance $OPTS \
   --no-publicly-accessible \
   --db-subnet-group $SUBNET_GROUP_NAME \
   --backup-retention-period 0 \
-  --storage-encrypted \
-  --kms-key-id $RDS_KMS_KEY \
   --license-model $DB_LICENSE_MODEL > /dev/null
 
 # Wait for the rds endpoint to be available before restoring to it
