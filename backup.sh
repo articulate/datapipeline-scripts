@@ -35,6 +35,42 @@ function cleanup_on_exit {
 
 trap cleanup_on_exit EXIT
 
+# call sqlcmd with retries/backoff so it doesn't fail right away after just one attempt
+function sqlcmd_with_backoff {
+  local max_attempts=${ATTEMPTS-9}
+  local timeout=${TIMEOUT-2}
+  local attempt=0
+
+  while [[ $attempt < $max_attempts ]]
+  do
+    local exitCode=0
+    MSG=$("$@" 2>&1)
+
+    if [[ $MSG =~ "Sqlcmd: Error" ]]
+    then
+      exitCode=1
+    fi
+
+    if [[ $exitCode == 0 ]]
+    then
+      echo "$MSG"
+      break
+    fi
+
+    echo "Failure! Retrying in $timeout seconds.." 1>&2
+    sleep $timeout
+    attempt=$(( attempt + 1 ))
+    timeout=$(( timeout * 2 ))
+  done
+
+  if [[ $exitCode != 0 ]]
+  then
+    echo "$MSG" 1>&2
+  fi
+
+  return $exitCode
+}
+
 SQLCMD=/opt/mssql-tools/bin/sqlcmd-13.0.1.0
 DB_INSTANCE_IDENTIFIER=$DB_ENGINE-$SERVICE_NAME-auto-restore
 DUMP=$SERVICE_NAME-$(date +%Y_%m_%d_%H%M%S)
@@ -57,7 +93,7 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
 
   # Run backup and capture the backup task status
   echo "Start the Mssql backup..."
-  TASK_OUTPUT=$($SQLCMD -S $RDS_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q \
+  TASK_OUTPUT=$(sqlcmd_with_backoff $SQLCMD -S $RDS_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q \
     "exec msdb.dbo.rds_backup_database @source_db_name='$DB_NAME', \
     @s3_arn_to_backup_to='arn:aws:s3:::$BACKUP_BUCKET/$SERVICE_NAME/$DUMP_FILE', \
     @overwrite_S3_backup_file=1;" -W -s ',' -k 1)
@@ -81,7 +117,7 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
 
   # Wait until backup status is SUCCESS before continuing
   function backup_task_status {
-    $SQLCMD -S $RDS_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q \
+    sqlcmd_with_backoff $SQLCMD -S $RDS_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q \
     "exec msdb.dbo.rds_task_status @task_id='$TASK_ID'" -W -s "," -k 1 \
     | csvcut -c "lifecycle" | tail -1
   }
@@ -229,7 +265,7 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
 
   # Run restore and capture the task status
   echo "Start the Mssql restore..."
-  RES_TASK_OUTPUT=$($SQLCMD -S $RESTORE_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q \
+  RES_TASK_OUTPUT=$(sqlcmd_with_backoff $SQLCMD -S $RESTORE_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q \
     "exec msdb.dbo.rds_restore_database @restore_db_name='$DB_NAME', \
     @s3_arn_to_restore_from='arn:aws:s3:::$BACKUP_BUCKET/$SERVICE_NAME/$DUMP_FILE';" \
     -W -s ',' -k 1)
@@ -246,7 +282,7 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
 
   # Wait until restore status is SUCCESS before continuing
   function restore_task_status {
-    $SQLCMD -S $RESTORE_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q \
+    sqlcmd_with_backoff $SQLCMD -S $RESTORE_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q \
     "exec msdb.dbo.rds_task_status @task_id='$RES_TASK_ID'" -W -s "," -k 1 \
     | csvcut -c "lifecycle" | tail -1
   }
