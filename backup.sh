@@ -72,7 +72,7 @@ function sqlcmd_with_backoff {
 }
 
 SQLCMD=/opt/mssql-tools/bin/sqlcmd-13.0.1.0
-DB_INSTANCE_IDENTIFIER=$DB_ENGINE-$SERVICE_NAME-$DEPLOY_ENV-auto-restore
+DB_INSTANCE_IDENTIFIER=$DB_ENGINE-$SERVICE_NAME-auto-restore
 DUMP=$SERVICE_NAME-$(date +%Y_%m_%d_%H%M%S)
 RESTORE_FILE=restore.sql
 
@@ -95,7 +95,7 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
   echo "Start the Mssql backup..."
   TASK_OUTPUT=$(sqlcmd_with_backoff $SQLCMD -S $RDS_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q \
     "exec msdb.dbo.rds_backup_database @source_db_name='$DB_NAME', \
-    @s3_arn_to_backup_to='arn:aws:s3:::$BACKUP_BUCKET/$SERVICE_NAME-$DEPLOY_ENV/$DUMP_FILE', \
+    @s3_arn_to_backup_to='arn:aws:s3:::$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/$DUMP_FILE', \
     @overwrite_S3_backup_file=1;" -W -s ',' -k 1)
 
   # Error (to stderr) if a backup task is already running
@@ -170,7 +170,7 @@ else # Our default db is Postgres
 
   # Upload it to s3
   echo "Copying dump file to s3..."
-  aws s3 cp $SSE --only-show-errors $DUMP_FILE s3://$BACKUP_BUCKET/$SERVICE_NAME-$DEPLOY_ENV/
+  aws s3 cp $SSE --only-show-errors $DUMP_FILE s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/
 
   # Delete the file
   rm -f $DUMP_FILE
@@ -178,7 +178,7 @@ else # Our default db is Postgres
 
   # Copy dump from s3 to restore to temp db
   echo "Downloading dump file from s3..."
-  aws s3 cp $SSE --only-show-errors s3://$BACKUP_BUCKET/$SERVICE_NAME-$DEPLOY_ENV/$DUMP_FILE .
+  aws s3 cp $SSE --only-show-errors s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/$DUMP_FILE .
   echo "...Done"
 
   # Create SQL script
@@ -267,7 +267,7 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
   echo "Start the Mssql restore..."
   RES_TASK_OUTPUT=$(sqlcmd_with_backoff $SQLCMD -S $RESTORE_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q \
     "exec msdb.dbo.rds_restore_database @restore_db_name='$DB_NAME', \
-    @s3_arn_to_restore_from='arn:aws:s3:::$BACKUP_BUCKET/$SERVICE_NAME-$DEPLOY_ENV/$DUMP_FILE';" \
+    @s3_arn_to_restore_from='arn:aws:s3:::$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/$DUMP_FILE';" \
     -W -s ',' -k 1)
 
   # Get the task id of the restore task status
@@ -317,7 +317,7 @@ fi
 
 # Give full control to the root user in our AWS Backup Account
 echo "Grant full control of dump file to AWS Backup Account..."
-aws s3api put-object-acl --bucket articulate-db-backups --key $SERVICE_NAME-$DEPLOY_ENV/$DUMP_FILE \
+aws s3api put-object-acl --bucket $BACKUP_BUCKET --key $BACKUP_ENV/$SERVICE_NAME/$DUMP_FILE \
   --grant-full-control emailaddress=$AWS_EMAIL_ADDRESS
 echo "...Done"
 
