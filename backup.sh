@@ -169,7 +169,7 @@ else # Our default db is Postgres
   fi
 
   # Upload it to s3
-  echo "Copying dump file to s3..."
+  echo "Copying dump file to s3 bucket: s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/"
   aws s3 cp $SSE --only-show-errors $DUMP_FILE s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/
 
   # Delete the file
@@ -177,7 +177,7 @@ else # Our default db is Postgres
   echo "...Done"
 
   # Copy dump from s3 to restore to temp db
-  echo "Downloading dump file from s3..."
+  echo "Downloading dump file from s3 bucket: s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/$DUMP_FILE"
   aws s3 cp $SSE --only-show-errors s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/$DUMP_FILE .
   echo "...Done"
 
