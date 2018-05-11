@@ -311,18 +311,10 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
   fi
 
 else # Restore Postgres db
-
   echo "Restoring Postgres backup..."
   psql --set ON_ERROR_STOP=on -h $RESTORE_ENDPOINT -U $RDS_USERNAME -d $DB_NAME < $RESTORE_FILE
   echo "...Done"
-
 fi
-
-# Give full control to the root user in our AWS Backup Account
-echo "Grant full control of dump file to AWS Backup Account..."
-aws s3api put-object-acl --bucket $BACKUP_BUCKET --key $BACKUP_ENV/$SERVICE_NAME/$DUMP_FILE \
-  --grant-full-control emailaddress=$AWS_EMAIL_ADDRESS
-echo "...Done"
 
 # Check in on success
 echo "Checkin to snitch..."
