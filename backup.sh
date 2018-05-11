@@ -143,6 +143,9 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
   fi
 
 else # Our default db is Postgres
+  echo "[profile backup]
+  role_arn=arn:aws:iam::280225230962:role/$BACKUP_ENV-backup
+  credential_source=Ec2InstanceMetadata" > ~/.aws/config
 
   PSQL_TOOLS_VERSION=$(echo $DB_ENGINE_VERSION | awk -F\. '{print $1$2}')
   DUMP_FILE=$DUMP.sql
@@ -170,7 +173,7 @@ else # Our default db is Postgres
 
   # Upload it to s3
   echo "Copying dump file to s3 bucket: s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/"
-  aws s3 cp $SSE --only-show-errors $DUMP_FILE s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/
+  aws s3 cp --profile backup $SSE --only-show-errors $DUMP_FILE s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/
 
   # Delete the file
   rm -f $DUMP_FILE
@@ -178,7 +181,7 @@ else # Our default db is Postgres
 
   # Copy dump from s3 to restore to temp db
   echo "Downloading dump file from s3 bucket: s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/$DUMP_FILE"
-  aws s3 cp $SSE --only-show-errors s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/$DUMP_FILE .
+  aws s3 cp --profile backup $SSE --only-show-errors s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/$DUMP_FILE .
   echo "...Done"
 
   # Create SQL script
