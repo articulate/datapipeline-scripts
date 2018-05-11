@@ -177,15 +177,6 @@ credential_source=Ec2InstanceMetadata" > ~/.aws/config
   echo "Copying dump file to s3 bucket: s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/"
   aws s3 cp --profile backup $SSE --only-show-errors $DUMP_FILE s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/
 
-  # Delete the file
-  rm -f $DUMP_FILE
-  echo "...Done"
-
-  # Copy dump from s3 to restore to temp db
-  echo "Downloading dump file from s3 bucket: s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/$DUMP_FILE"
-  aws s3 cp --profile backup $SSE --only-show-errors s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/$DUMP_FILE .
-  echo "...Done"
-
   # Create SQL script
   echo "Expanding & removing COMMENT ON EXTENSION from dump file..."
   pg_restore $DUMP_FILE | sed -e '/COMMENT ON EXTENSION/d' > $RESTORE_FILE
@@ -196,7 +187,6 @@ credential_source=Ec2InstanceMetadata" > ~/.aws/config
     echo "Error dump file downloaded from s3 has no data"
     exit 2
   fi
-
 fi
 
 # Create the RDS restore instance
