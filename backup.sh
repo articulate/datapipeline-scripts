@@ -146,8 +146,8 @@ else # Our default db is Postgres
   mkdir ~/.aws
 
   echo "[profile backup]
-  role_arn=arn:aws:iam::280225230962:role/$BACKUP_ENV-backup
-  credential_source=Ec2InstanceMetadata" > ~/.aws/config
+role_arn=arn:aws:iam::280225230962:role/$BACKUP_ENV-backup
+credential_source=Ec2InstanceMetadata" > ~/.aws/config
 
   PSQL_TOOLS_VERSION=$(echo $DB_ENGINE_VERSION | awk -F\. '{print $1$2}')
   DUMP_FILE=$DUMP.sql
