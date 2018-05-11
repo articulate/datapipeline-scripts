@@ -143,6 +143,8 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
   fi
 
 else # Our default db is Postgres
+  mkdir ~/.aws
+
   echo "[profile backup]
   role_arn=arn:aws:iam::280225230962:role/$BACKUP_ENV-backup
   credential_source=Ec2InstanceMetadata" > ~/.aws/config
