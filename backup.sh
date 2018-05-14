@@ -77,7 +77,7 @@ DUMP=$SERVICE_NAME-$(date +%Y_%m_%d_%H%M%S)
 RESTORE_FILE=restore.sql
 SSE="--sse aws:kms --sse-kms-key-id $KMS_KEY"
 
-mkdir ~/.aws
+mkdir -p ~/.aws
 
 echo "[profile backup]
 role_arn=arn:aws:iam::280225230962:role/$BACKUP_ENV-backup
