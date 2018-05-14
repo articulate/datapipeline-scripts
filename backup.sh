@@ -75,6 +75,13 @@ SQLCMD=/opt/mssql-tools/bin/sqlcmd-13.0.1.0
 DB_INSTANCE_IDENTIFIER=$DB_ENGINE-$SERVICE_NAME-auto-restore
 DUMP=$SERVICE_NAME-$(date +%Y_%m_%d_%H%M%S)
 RESTORE_FILE=restore.sql
+SSE="--sse aws:kms --sse-kms-key-id $KMS_KEY"
+
+mkdir ~/.aws
+
+echo "[profile backup]
+role_arn=arn:aws:iam::280225230962:role/$BACKUP_ENV-backup
+credential_source=Ec2InstanceMetadata" > ~/.aws/config
 
 if [[ $DB_ENGINE == "sqlserver-se" ]]; then
 
@@ -95,7 +102,7 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
   echo "Start the Mssql backup..."
   TASK_OUTPUT=$(sqlcmd_with_backoff $SQLCMD -S $RDS_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q \
     "exec msdb.dbo.rds_backup_database @source_db_name='$DB_NAME', \
-    @s3_arn_to_backup_to='arn:aws:s3:::$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/$DUMP_FILE', \
+    @s3_arn_to_backup_to='arn:aws:s3:::$BACKUP_TEMP_BUCKET/$DUMP_FILE', \
     @overwrite_S3_backup_file=1;" -W -s ',' -k 1)
 
   # Error (to stderr) if a backup task is already running
@@ -143,15 +150,8 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
   fi
 
 else # Our default db is Postgres
-  mkdir ~/.aws
-
-  echo "[profile backup]
-role_arn=arn:aws:iam::280225230962:role/$BACKUP_ENV-backup
-credential_source=Ec2InstanceMetadata" > ~/.aws/config
-
   PSQL_TOOLS_VERSION=$(echo $DB_ENGINE_VERSION | awk -F\. '{print $1$2}')
   DUMP_FILE=$DUMP.sql
-  SSE="--sse aws:kms --sse-kms-key-id $KMS_KEY"
 
   # Enable s3 signature version v4 (for aws bucket server side encryption)
   aws configure set s3.signature_version s3v4
@@ -262,7 +262,7 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
   echo "Start the Mssql restore..."
   RES_TASK_OUTPUT=$(sqlcmd_with_backoff $SQLCMD -S $RESTORE_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q \
     "exec msdb.dbo.rds_restore_database @restore_db_name='$DB_NAME', \
-    @s3_arn_to_restore_from='arn:aws:s3:::$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/$DUMP_FILE';" \
+    @s3_arn_to_restore_from='arn:aws:s3:::$BACKUP_TEMP_BUCKET/$DUMP_FILE';" \
     -W -s ',' -k 1)
 
   # Get the task id of the restore task status
@@ -301,6 +301,14 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
     echo "Task status: $RESTORE_TASK_STATUS"
     exit 1
   fi
+
+  # Transfer dump file to the permanent backup bucket
+  echo "Copying dump file to s3 bucket: s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/"
+  aws s3 cp --profile backup $SSE --only-show-errors s3://$BACKUP_TEMP_BUCKET/$DUMP_FILE s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/
+
+  # Cleanup dump file from the temp backup bucket
+  echo "Removing dump file from the temp backups bucket: s3://$BACKUP_TEMP_BUCKET/"
+  aws s3 rm --profile backup --only-show-errors s3://$BACKUP_TEMP_BUCKET/$DUMP_FILE
 
 else # Restore Postgres db
   echo "Restoring Postgres backup..."
