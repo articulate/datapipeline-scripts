@@ -76,6 +76,12 @@ DB_INSTANCE_IDENTIFIER=$DB_ENGINE-$SERVICE_NAME-auto-restore
 DUMP=$SERVICE_NAME-$(date +%Y_%m_%d_%H%M%S)
 RESTORE_FILE=restore.sql
 
+mkdir ~/.aws
+
+echo "[profile backup]
+role_arn=arn:aws:iam::280225230962:role/$BACKUP_ENV-backup
+credential_source=Ec2InstanceMetadata" > ~/.aws/config
+
 if [[ $DB_ENGINE == "sqlserver-se" ]]; then
 
   DUMP_FILE=$DUMP.db
@@ -95,7 +101,7 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
   echo "Start the Mssql backup..."
   TASK_OUTPUT=$(sqlcmd_with_backoff $SQLCMD -S $RDS_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q \
     "exec msdb.dbo.rds_backup_database @source_db_name='$DB_NAME', \
-    @s3_arn_to_backup_to='arn:aws:s3:::$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/$DUMP_FILE', \
+    @s3_arn_to_backup_to='arn:aws:s3:::$BACKUP_TEMP_BUCKET/$DUMP_FILE', \
     @overwrite_S3_backup_file=1;" -W -s ',' -k 1)
 
   # Error (to stderr) if a backup task is already running
@@ -143,12 +149,6 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
   fi
 
 else # Our default db is Postgres
-  mkdir ~/.aws
-
-  echo "[profile backup]
-role_arn=arn:aws:iam::280225230962:role/$BACKUP_ENV-backup
-credential_source=Ec2InstanceMetadata" > ~/.aws/config
-
   PSQL_TOOLS_VERSION=$(echo $DB_ENGINE_VERSION | awk -F\. '{print $1$2}')
   DUMP_FILE=$DUMP.sql
   SSE="--sse aws:kms --sse-kms-key-id $KMS_KEY"
@@ -262,7 +262,7 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
   echo "Start the Mssql restore..."
   RES_TASK_OUTPUT=$(sqlcmd_with_backoff $SQLCMD -S $RESTORE_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q \
     "exec msdb.dbo.rds_restore_database @restore_db_name='$DB_NAME', \
-    @s3_arn_to_restore_from='arn:aws:s3:::$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/$DUMP_FILE';" \
+    @s3_arn_to_restore_from='arn:aws:s3:::$BACKUP_TEMP_BUCKET/$DUMP_FILE';" \
     -W -s ',' -k 1)
 
   # Get the task id of the restore task status
