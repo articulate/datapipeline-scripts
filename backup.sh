@@ -14,33 +14,22 @@ function cleanup_on_exit {
   echo "Trap EXIT called..."
   echo "If this script exited prematurely, check stderr for the exit error message"
 
-  cleanup_stale_instances
-}
-
-# generic cleanup w/error trapping
-function cleanup_stale_instances {
-
-  echo "Trap cleanup stale instances called..."
-
   # if restore instance exists, delete it
   ERROR=$(aws rds describe-db-instances --db-instance-identifier $DB_INSTANCE_IDENTIFIER 2>&1)
   RET_CODE=$?
-  echo "Checked for db instance, got code: ${RET_CODE}"
 
   DELETE_RET_CODE=0
   if [[ $RET_CODE == 0 ]]; then
     echo "Deleting restore DB instance $DB_INSTANCE_IDENTIFIER..."
     ERROR=$(aws rds delete-db-instance --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
       --skip-final-snapshot 2>&1)
-    DELETE_RET_CODE=$?
-    echo "Finished deleting DB instance, got code: ${DELETE_RET_CODE}"
+    RET_CODE=$?
   fi
 
   # this if statement is a catch all for any errors with the restore instance db deletion
-  if [[ $DELETE_RET_CODE != 0 ]]; then
-    echo "DB instance delete failed, got code: ${DELETE_RET_CODE}"
+  if [[ $RET_CODE != 0 ]]; then
     echo $ERROR
-    exit $DELETE_RET_CODE
+    exit $RET_CODE
   fi
 
 }
@@ -216,9 +205,6 @@ if [[ $RDS_INSTANCE_TYPE != "db.t2.micro" ]]; then
 else
   ENCRYPTION=""
 fi
-
-# We need to make sure there isn't an instance hanging around already
-cleanup_stale_instances 
 
 echo "Create DB restore instance..."
 
