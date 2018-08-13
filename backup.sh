@@ -9,7 +9,7 @@ export AWS_DEFAULT_REGION=us-east-1
 
 # Use trap to print the most recent error message & delete the restore instance
 # when the script exits
-function cleanup_on_exit {
+function cleanup_stale_instances {
 
   echo "Trap EXIT called..."
   echo "If this script exited prematurely, check stderr for the exit error message"
@@ -33,7 +33,7 @@ function cleanup_on_exit {
 
 }
 
-trap cleanup_on_exit EXIT
+trap cleanup_stale_instances EXIT
 
 # call sqlcmd with retries/backoff so it doesn't fail right away after just one attempt
 function sqlcmd_with_backoff {
@@ -204,6 +204,9 @@ if [[ $RDS_INSTANCE_TYPE != "db.t2.micro" ]]; then
 else
   ENCRYPTION=""
 fi
+
+# We need to make sure there isn't an instance hanging around already
+cleanup_stale_instances 
 
 echo "Create DB restore instance..."
 
