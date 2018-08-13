@@ -9,10 +9,18 @@ export AWS_DEFAULT_REGION=us-east-1
 
 # Use trap to print the most recent error message & delete the restore instance
 # when the script exits
+function cleanup_on_exit {
+
+  echo "Trap EXIT called..."
+  echo "If this script exited prematurely, check stderr for the exit error message"
+
+  cleanup_stale_instances
+}
+
+# generic cleanup w/error trapping
 function cleanup_stale_instances {
 
   echo "Trap cleanup stale instances called..."
-  echo "If this script exited prematurely, check stderr for the exit error message"
 
   # if restore instance exists, delete it
   ERROR=$(aws rds describe-db-instances --db-instance-identifier $DB_INSTANCE_IDENTIFIER 2>&1)
@@ -33,7 +41,7 @@ function cleanup_stale_instances {
 
 }
 
-trap cleanup_stale_instances EXIT
+trap cleanup_on_exit EXIT
 
 # call sqlcmd with retries/backoff so it doesn't fail right away after just one attempt
 function sqlcmd_with_backoff {
