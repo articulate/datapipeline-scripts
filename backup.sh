@@ -14,6 +14,14 @@ function cleanup_on_exit {
   echo "Trap EXIT called..."
   echo "If this script exited prematurely, check stderr for the exit error message"
 
+  cleanup_stale_instances
+}
+
+# generic cleanup w/error trapping
+function cleanup_stale_instances {
+
+  echo "Trap cleanup stale instances called..."
+
   # if restore instance exists, delete it
   ERROR=$(aws rds describe-db-instances --db-instance-identifier $DB_INSTANCE_IDENTIFIER 2>&1)
   RET_CODE=$?
@@ -204,6 +212,9 @@ if [[ $RDS_INSTANCE_TYPE != "db.t2.micro" ]]; then
 else
   ENCRYPTION=""
 fi
+
+# We need to make sure there isn't an instance hanging around already
+cleanup_stale_instances 
 
 echo "Create DB restore instance..."
 
