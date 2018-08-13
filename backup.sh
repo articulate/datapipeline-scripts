@@ -11,7 +11,7 @@ export AWS_DEFAULT_REGION=us-east-1
 # when the script exits
 function cleanup_stale_instances {
 
-  echo "Trap EXIT called..."
+  echo "Trap cleanup stale instances called..."
   echo "If this script exited prematurely, check stderr for the exit error message"
 
   # if restore instance exists, delete it
