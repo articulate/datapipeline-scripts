@@ -26,6 +26,7 @@ function cleanup_stale_instances {
   ERROR=$(aws rds describe-db-instances --db-instance-identifier $DB_INSTANCE_IDENTIFIER 2>&1)
   RET_CODE=$?
 
+  DELETE_RET_CODE=0
   if [[ $RET_CODE == 0 ]]; then
     echo "Deleting restore DB instance $DB_INSTANCE_IDENTIFIER..."
     ERROR=$(aws rds delete-db-instance --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
