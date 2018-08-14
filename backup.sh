@@ -19,7 +19,7 @@ function cleanup_on_exit {
 
 }
 
-funtion cleanup_stale_instance {
+function cleanup_stale_instance {
 
   # if restore instance exists, delete it
   
