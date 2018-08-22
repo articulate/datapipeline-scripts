@@ -37,9 +37,8 @@ function wait_for {
 
 function is_rds_deleting {
   # Wait for the rds endpoint to be destroyed
-  DELETINGINSTANCE=$(aws rds describe-db-instances \
-      --query 'DBInstances[*].[DBInstanceIdentifier]' \
-      --filters Name=db-instance-id,Values=$DB_INSTANCE_IDENTIFIER \
+  DELETINGINSTANCE=$(aws rds wait db-instance-deleted \
+      --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
       --output text \
       )
 
@@ -72,7 +71,7 @@ function cleanup_stale_instance {
     echo "Finished deleting DB instance, got code: ${DELETE_RET_CODE}"
   fi
 
-  timed_command wait_for is_rds_deleting
+  timed_command is_rds_deleting
 
   # this if statement is a catch all for any errors with the restore instance db deletion
   if [[ $DELETE_RET_CODE != 0 ]]; then
