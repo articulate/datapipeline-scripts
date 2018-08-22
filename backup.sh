@@ -7,6 +7,15 @@ set -euo pipefail
 
 export AWS_DEFAULT_REGION=us-east-1
 
+# Timestamps are useful
+function timed_command { 
+
+  echo "start time: $(date): $*" 1>&2; 
+  "$@"; 
+  echo "end time: $(date): $*" 1>&2; 
+
+}
+
 # Use trap to print the most recent error message & delete the restore instance
 # when the script exits
 function cleanup_on_exit {
@@ -15,8 +24,33 @@ function cleanup_on_exit {
   echo "If this script exited prematurely, check stderr for the exit error message"
 
   # now we call the generic cleanup script
-  cleanup_stale_instance
+  timed_command cleanup_stale_instance
 
+}
+
+function wait_for { 
+  while "$@" 
+  do 
+    sleep 5 
+  done
+}
+
+function is_rds_deleting {
+  # Wait for the rds endpoint to be destroyed
+  DELETINGINSTANCE=$(aws rds describe-db-instances \
+      --query 'DBInstances[*].[DBInstanceIdentifier]' \
+      --filters Name=db-instance-id,Values=$DB_INSTANCE_IDENTIFIER \
+      --output text \
+      )
+
+  if [[ -z $DELETINGINSTANCE ]]
+  then
+    echo "instance $DB_INSTANCE_IDENTIFIER is deleted"
+    return 1
+  else
+    echo "instance $DB_INSTANCE_IDENTIFIER still deleting"
+    return 0
+  fi
 }
 
 function cleanup_stale_instance {
@@ -37,6 +71,8 @@ function cleanup_stale_instance {
     DELETE_RET_CODE=$?
     echo "Finished deleting DB instance, got code: ${DELETE_RET_CODE}"
   fi
+
+  timed_command wait_for is_rds_deleting
 
   # this if statement is a catch all for any errors with the restore instance db deletion
   if [[ $DELETE_RET_CODE != 0 ]]; then
@@ -210,12 +246,12 @@ EXISTINGINSTANCE=$(aws rds describe-db-instances \
     --output text \
     )
 
-if [ -z $EXISTINGINSTANCE ]
+if [[ -z $EXISTINGINSTANCE ]]
 then
   echo "stale instance $DB_INSTANCE_IDENTIFIER does not exist"
 else
   echo "stale instance $DB_INSTANCE_IDENTIFIER exists, cleaning up"
-  cleanup_stale_instance
+  timed_command cleanup_stale_instance
 fi
 
 # Create the RDS restore instance
