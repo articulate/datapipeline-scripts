@@ -20,7 +20,7 @@ function timed_command {
 # when the script exits
 function cleanup_on_exit {
 
-  echo "Trap EXIT called..."
+  echo "Cleanup on exit called..."
   echo "If this script exited prematurely, check stderr for the exit error message"
 
   # now we call the generic cleanup script
@@ -28,7 +28,7 @@ function cleanup_on_exit {
 
 }
 
-function is_rds_deleting {
+function is_rds_done_deleting {
   # We are exiting with an error code of 1
   # when the database is deleted
   if aws rds wait db-instance-deleted \
@@ -36,10 +36,10 @@ function is_rds_deleting {
       --output text
   then
     echo "instance $DB_INSTANCE_IDENTIFIER is deleted"
-    return 1
-  else
-    echo "instance $DB_INSTANCE_IDENTIFIER still deleting"
     return 0
+  else
+    echo "ERROR: instance $DB_INSTANCE_IDENTIFIER is still deleting, might need human intervention"
+    return 1
   fi
 }
 
@@ -47,7 +47,7 @@ function cleanup_stale_instance {
 
   # if restore instance exists, delete it
   
-  echo "Trap cleanup stale instances called..."
+  echo "Cleanup stale instance called..."
 
   ERROR=$(aws rds describe-db-instances --db-instance-identifier $DB_INSTANCE_IDENTIFIER 2>&1)
   RET_CODE=$?
@@ -57,7 +57,7 @@ function cleanup_stale_instance {
     echo "Deleting restore DB instance $DB_INSTANCE_IDENTIFIER..."
     ERROR=$(aws rds delete-db-instance --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
       --skip-final-snapshot 2>&1)
-    timed_command is_rds_deleting || true
+    timed_command is_rds_done_deleting || true
   fi
 
 }
