@@ -7,15 +7,6 @@ set -euo pipefail
 
 export AWS_DEFAULT_REGION=us-east-1
 
-# Timestamps are useful
-function timed_command { 
-
-  echo "start time: $(date): $*" 1>&2; 
-  "$@"; 
-  echo "end time: $(date): $*" 1>&2; 
-
-}
-
 # Use trap to print the most recent error message & delete the restore instance
 # when the script exits
 function cleanup_on_exit {
@@ -23,59 +14,20 @@ function cleanup_on_exit {
   echo "Trap EXIT called..."
   echo "If this script exited prematurely, check stderr for the exit error message"
 
-  # now we call the generic cleanup script
-  timed_command cleanup_stale_instance
-
-}
-
-function wait_for { 
-  while "$@" 
-  do 
-    sleep 5 
-  done
-}
-
-function is_rds_deleting {
-  # Wait for the rds endpoint to be destroyed
-  DELETINGINSTANCE=$(aws rds wait db-instance-deleted \
-      --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
-      --output text \
-      )
-
-  if [[ -z $DELETINGINSTANCE ]]
-  then
-    echo "instance $DB_INSTANCE_IDENTIFIER is deleted"
-    return 1
-  else
-    echo "instance $DB_INSTANCE_IDENTIFIER still deleting"
-    return 0
-  fi
-}
-
-function cleanup_stale_instance {
-
   # if restore instance exists, delete it
-  
-  echo "Trap cleanup stale instances called..."
-
   ERROR=$(aws rds describe-db-instances --db-instance-identifier $DB_INSTANCE_IDENTIFIER 2>&1)
   RET_CODE=$?
-  echo "Checked for db instance, got code: ${RET_CODE}"
 
   DELETE_RET_CODE=0
   if [[ $RET_CODE == 0 ]]; then
     echo "Deleting restore DB instance $DB_INSTANCE_IDENTIFIER..."
     ERROR=$(aws rds delete-db-instance --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
       --skip-final-snapshot 2>&1)
-    DELETE_RET_CODE=$?
-    echo "Finished deleting DB instance, got code: ${DELETE_RET_CODE}"
+    RET_CODE=$?
   fi
 
-  timed_command is_rds_deleting
-
   # this if statement is a catch all for any errors with the restore instance db deletion
-  if [[ $DELETE_RET_CODE != 0 ]]; then
-    echo "DB instance delete failed, got code: ${DELETE_RET_CODE}"
+  if [[ $RET_CODE != 0 ]]; then
     echo $ERROR
     exit $RET_CODE
   fi
@@ -236,21 +188,6 @@ else # Our default db is Postgres
     echo "Error dump file downloaded from s3 has no data"
     exit 2
   fi
-fi
-
-# In case there is a previously created instance, we'll clean up first
-EXISTINGINSTANCE=$(aws rds describe-db-instances \
-    --query 'DBInstances[*].[DBInstanceIdentifier]' \
-    --filters Name=db-instance-id,Values=$DB_INSTANCE_IDENTIFIER \
-    --output text \
-    )
-
-if [[ -z $EXISTINGINSTANCE ]]
-then
-  echo "stale instance $DB_INSTANCE_IDENTIFIER does not exist"
-else
-  echo "stale instance $DB_INSTANCE_IDENTIFIER exists, cleaning up"
-  timed_command cleanup_stale_instance
 fi
 
 # Create the RDS restore instance
