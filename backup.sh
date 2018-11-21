@@ -208,7 +208,7 @@ fi
 
 echo "Creating DB restore instance with values:"
 echo "db instance identifier: $DB_INSTANCE_IDENTIFIER"
-echo "db instance class: $DB_INSTANCE_TYPE"
+echo "db instance class: $RDS_INSTANCE_TYPE"
 echo "engine: $DB_ENGINE"
 echo "username: $RDS_USERNAME"
 echo "storage: $RDS_STORAGE_SIZE"
