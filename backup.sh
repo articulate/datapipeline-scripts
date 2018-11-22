@@ -180,7 +180,9 @@ else # Our default db is Postgres
 
   # Create SQL script
   echo "Expanding & removing COMMENT ON EXTENSION from dump file..."
-  pg_restore $DUMP_FILE | sed -e '/COMMENT ON EXTENSION/d' > $RESTORE_FILE
+  pg_restore $DUMP_FILE | sed -e '/COMMENT ON EXTENSION/d' \
+    | sed -e '/CREATE SCHEMA apgcc;/d' \
+    | sed -e '/ALTER SCHEMA apgcc OWNER TO rdsadmin;/d' > $RESTORE_FILE
   echo "...Done"
 
   # Verify the restore file isn't empty before continuing
