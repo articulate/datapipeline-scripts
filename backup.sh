@@ -173,23 +173,6 @@ else # Our default db is Postgres
     echo "Error dump file has no data"
     exit 2
   fi
-
-  # Upload it to s3
-  echo "Copying dump file to s3 bucket: s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/"
-  aws s3 cp --profile backup $SSE --only-show-errors $DUMP_FILE s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/
-
-  # Create SQL script
-  echo "Expanding & removing COMMENT ON EXTENSION from dump file..."
-  pg_restore $DUMP_FILE | sed -e '/COMMENT ON EXTENSION/d' \
-    | sed -e '/CREATE SCHEMA apgcc;/d' \
-    | sed -e '/ALTER SCHEMA apgcc OWNER TO rdsadmin;/d' > $RESTORE_FILE
-  echo "...Done"
-
-  # Verify the restore file isn't empty before continuing
-  if [[ ! -s $RESTORE_FILE ]]; then
-    echo "Error dump file downloaded from s3 has no data"
-    exit 2
-  fi
 fi
 
 # Create the RDS restore instance
@@ -320,9 +303,20 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
   aws s3 rm --profile backup --only-show-errors s3://$BACKUP_TEMP_BUCKET/$DUMP_FILE
 
 else # Restore Postgres db
+  # Remove some fields from dump file to create a restore file that won't cause the pipeline to error out
+  echo "Expanding & removing COMMENT ON EXTENSION from dump file..."
+  pg_restore $DUMP_FILE | sed -e '/COMMENT ON EXTENSION/d' \
+    | sed -e '/CREATE SCHEMA apgcc;/d' \
+    | sed -e '/ALTER SCHEMA apgcc OWNER TO rdsadmin;/d' > $RESTORE_FILE
+  echo "...Done"
+
   echo "Restoring Postgres backup..."
   psql --set ON_ERROR_STOP=on -h $RESTORE_ENDPOINT -U $RDS_USERNAME -d $DB_NAME < $RESTORE_FILE
   echo "...Done"
+
+  # Upload the dump file to s3
+  echo "Copying dump file to s3 bucket: s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/"
+  aws s3 cp --profile backup $SSE --only-show-errors $DUMP_FILE s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/
 fi
 
 # Check in on success
