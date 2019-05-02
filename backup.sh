@@ -151,7 +151,7 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
   fi
 
 else # Our default db is Postgres
-  majorVersion="${PSQL_TOOLS_VERSION%%.*}"
+  majorVersion="${DB_ENGINE_VERSION%%.*}"
   PSQL_TOOLS_VERSION=$(echo $DB_ENGINE_VERSION | awk -F\. '{print $1$2}')
 
   # package name changed 10 on
