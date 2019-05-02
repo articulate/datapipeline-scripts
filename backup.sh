@@ -151,7 +151,14 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
   fi
 
 else # Our default db is Postgres
+  majorVersion="${PSQL_TOOLS_VERSION%%.*}"
   PSQL_TOOLS_VERSION=$(echo $DB_ENGINE_VERSION | awk -F\. '{print $1$2}')
+
+  # package name changed 10 on
+  if [[ "$majorVersion" == "10" || "$majorVersion" == "11" ]]; then
+    PSQL_TOOLS_VERSION="$majorVersion"
+  fi
+
   DUMP_FILE=$DUMP.sql
 
   # Enable s3 signature version v4 (for aws bucket server side encryption)
