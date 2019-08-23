@@ -44,7 +44,7 @@ mkdir -p ~/.aws
 
 echo "[profile backup]
 role_arn=arn:aws:iam::$BACKUP_ACCOUNT_ID:role/$ACCOUNT_GROUP-$ENV-backups
-credential_source=EcsContainer" > ~/.aws/config
+credential_source=Ec2InstanceMetadata" > ~/.aws/config
 
 majorVersion="${DB_ENGINE_VERSION%%.*}"
 PSQL_TOOLS_VERSION=$(echo $DB_ENGINE_VERSION | awk -F\. '{print $1"."$2}')
