@@ -157,33 +157,32 @@ done
 echo "...DB restore cluster created"
 
 # Our restore DB Address
-RESTORE_ENDPOINT=$(aws rds describe-db-clusters \
+# RESTORE_ENDPOINT=$(aws rds describe-db-clusters \
+#   --db-cluster-identifier $DB_CLUSTER_IDENTIFIER \
+#   --query 'DBClusters[0].Endpoint' \
+#   --output text)
+
+aws rds create-db-instance $OPTS $ENCRYPTION \
+  --db-instance-identifier $DB_INSTANCE_IDENTIFIER 
   --db-cluster-identifier $DB_CLUSTER_IDENTIFIER \
-  --query 'DBClusters[0].Endpoint' \
-  --output text)
+  --db-instance-class $RDS_INSTANCE_TYPE \
+  --engine $DB_ENGINE \
+  --master-username $RDS_USERNAME \
+  --master-user-password $RDS_PASSWORD \
+  --vpc-security-group-ids $RDS_SECURITY_GROUP \
+  --no-multi-az \
+  --engine-version $DB_ENGINE_VERSION \
+  --no-publicly-accessible \
+  --db-subnet-group $SUBNET_GROUP_NAME \
+  --license-model $DB_LICENSE_MODEL > /dev/null
 
-# aws rds create-db-instance $OPTS $ENCRYPTION \
-#   --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
-#   --db-instance-class $RDS_INSTANCE_TYPE \
-#   --engine $DB_ENGINE \
-#   --master-username $RDS_USERNAME \
-#   --master-user-password $RDS_PASSWORD \
-#   --vpc-security-group-ids $RDS_SECURITY_GROUP \
-#   --no-multi-az \
-#   --storage-type gp2 \
-#   --allocated-storage $RDS_STORAGE_SIZE \
-#   --engine-version $DB_ENGINE_VERSION \
-#   --no-publicly-accessible \
-#   --db-subnet-group $SUBNET_GROUP_NAME \
-#   --license-model $DB_LICENSE_MODEL > /dev/null
-
-# Wait for the rds endpoint to be available before restoring to it
-# function rds_status {
-#   aws rds describe-db-instances \
-#   --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
-#   --query 'DBInstances[0].DBInstanceStatus' \
-#   --output text
-# }
+Wait for the rds endpoint to be available before restoring to it
+function rds_status {
+  aws rds describe-db-instances \
+  --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
+  --query 'DBInstances[0].DBInstanceStatus' \
+  --output text
+}
 
 # while [[ ! $(rds_status) == "available" ]]; do
 #   echo "DB server is not online yet ... sleeping"
@@ -192,11 +191,11 @@ RESTORE_ENDPOINT=$(aws rds describe-db-clusters \
 
 # echo "...DB restore instance created"
 
-# # Our restore DB Address
-# RESTORE_ENDPOINT=$(aws rds describe-db-instances \
-#   --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
-#   --query 'DBInstances[0].Endpoint.Address' \
-#   --output text)
+# Our restore DB Address
+RESTORE_ENDPOINT=$(aws rds describe-db-instances \
+  --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
+  --query 'DBInstances[0].Endpoint.Address' \
+  --output text)
 
 echo "Restoring Postgres backup..."
 psql --set ON_ERROR_STOP=on -h $RESTORE_ENDPOINT -U $RDS_USERNAME -d $DB_NAME < $RESTORE_FILE
