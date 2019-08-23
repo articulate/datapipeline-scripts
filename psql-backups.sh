@@ -139,7 +139,22 @@ aws rds create-db-cluster \
     --master-username $RDS_USERNAME \
     --master-user-password $RDS_PASSWORD \
     --db-subnet-group-name $SUBNET_GROUP_NAME \
-    --vpc-security-group-ids $RDS_SECURITY_GROUP > /dev/null
+    --vpc-security-group-ids $RDS_SECURITY_GROUP \
+    --tags '
+    [  
+      {    
+        “Key”: “Product”,
+        “Value”: “$PRODUCT”
+      }, 
+      {
+        “Key”: “Env”,
+        “Value”: “$ENV”
+      }, 
+      {
+        “Key”: “Service”,
+        “Value”: “$SERVICE_NAME”
+      }
+    ]' > /dev/null
     
 # Wait for the rds endpoint to be available before restoring to it
 function rds_cluster_status {
