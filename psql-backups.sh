@@ -156,7 +156,7 @@ done
 
 echo "...DB restore cluster created"
 
-aws rds create-db-instance $ENCRYPTION \
+aws rds create-db-instance \
   --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
   --db-cluster-identifier $DB_CLUSTER_IDENTIFIER \
   --db-instance-class $RDS_INSTANCE_TYPE \
