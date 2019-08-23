@@ -156,13 +156,7 @@ done
 
 echo "...DB restore cluster created"
 
-# Our restore DB Address
-# RESTORE_ENDPOINT=$(aws rds describe-db-clusters \
-#   --db-cluster-identifier $DB_CLUSTER_IDENTIFIER \
-#   --query 'DBClusters[0].Endpoint' \
-#   --output text)
-
-aws rds create-db-instance $OPTS $ENCRYPTION \
+aws rds create-db-instance $ENCRYPTION \
   --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
   --db-cluster-identifier $DB_CLUSTER_IDENTIFIER \
   --db-instance-class $RDS_INSTANCE_TYPE \
