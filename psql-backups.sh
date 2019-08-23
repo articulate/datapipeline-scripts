@@ -163,20 +163,16 @@ echo "...DB restore cluster created"
 #   --output text)
 
 aws rds create-db-instance $OPTS $ENCRYPTION \
-  --db-instance-identifier $DB_INSTANCE_IDENTIFIER 
+  --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
   --db-cluster-identifier $DB_CLUSTER_IDENTIFIER \
   --db-instance-class $RDS_INSTANCE_TYPE \
   --engine $DB_ENGINE \
-  --master-username $RDS_USERNAME \
-  --master-user-password $RDS_PASSWORD \
-  --vpc-security-group-ids $RDS_SECURITY_GROUP \
   --no-multi-az \
   --engine-version $DB_ENGINE_VERSION \
   --no-publicly-accessible \
-  --db-subnet-group $SUBNET_GROUP_NAME \
   --license-model $DB_LICENSE_MODEL > /dev/null
 
-Wait for the rds endpoint to be available before restoring to it
+# Wait for the rds endpoint to be available before restoring to it
 function rds_status {
   aws rds describe-db-instances \
   --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
@@ -184,12 +180,12 @@ function rds_status {
   --output text
 }
 
-# while [[ ! $(rds_status) == "available" ]]; do
-#   echo "DB server is not online yet ... sleeping"
-#   sleep 60s
-# done
+while [[ ! $(rds_status) == "available" ]]; do
+  echo "DB server is not online yet ... sleeping"
+  sleep 60s
+done
 
-# echo "...DB restore instance created"
+echo "...DB restore instance created"
 
 # Our restore DB Address
 RESTORE_ENDPOINT=$(aws rds describe-db-instances \
