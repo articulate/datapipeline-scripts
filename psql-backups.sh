@@ -62,7 +62,7 @@ aws configure set s3.signature_version s3v4
 # Install the postgres tools matching the engine version
 echo "Postgres dump. installing dependencies..."
 
-sudo apt-get -y postgresql$PSQL_TOOLS_VERSION > /dev/null
+sudo yum install -y postgresql$PSQL_TOOLS_VERSION > /dev/null
 # echo "deb http://apt.postgresql.org/pub/repos/apt/ stretch-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
 # wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
 # sudo apt-get update
