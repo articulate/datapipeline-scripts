@@ -25,17 +25,36 @@ function cleanup_on_exit {
       --skip-final-snapshot 2>&1)
     RET_CODE=$?
   fi
-
+  
   # this if statement is a catch all for any errors with the restore instance db deletion
   if [[ $RET_CODE != 0 ]]; then
     echo $ERROR
     exit $RET_CODE
+  fi
+  
+  # if restore cluster exists, delete it
+  ERROR_CLUSTER=$(aws rds describe-db-clusters --db-cluster-identifier $DB_CLUSTER_IDENTIFIER 2>&1)
+  RET_CLUSER_CODE=$?
+
+  DELETE_RET_CLUSTER_CODE=0
+  if [[ $RET_CLUSER_CODE == 0 ]]; then
+    echo "Deleting restore DB cluster $DB_CLUSTER_IDENTIFIER..."
+    ERROR_CLUSTER=$(aws rds delete-db-cluster --db-cluster-identifier $DB_CLUSTER_IDENTIFIER \
+      --skip-final-snapshot 2>&1)
+    RET_CLUSER_CODE=$?
+  fi
+
+  # this if statement is a catch all for any errors with the restore cluster db deletion
+  if [[ $RET_CLUSER_CODE != 0 ]]; then
+    echo $ERROR_CLUSTER
+    exit $RET_CLUSER_CODE
   fi
 
 }
 
 trap cleanup_on_exit EXIT
 
+DB_CLUSTER_IDENTIFIER=$DB_ENGINE-$SERVICE_NAME-auto-restore-cluster
 DB_INSTANCE_IDENTIFIER=$DB_ENGINE-$SERVICE_NAME-auto-restore
 DUMP=$SERVICE_NAME-$(date +%Y_%m_%d_%H%M%S)
 RESTORE_FILE=restore.sql
@@ -61,12 +80,7 @@ aws configure set s3.signature_version s3v4
 
 # Install the postgres tools matching the engine version
 echo "Postgres dump. installing dependencies..."
-
 sudo amazon-linux-extras install -y postgresql$PSQL_TOOLS_VERSION > /dev/null
-# echo "deb http://apt.postgresql.org/pub/repos/apt/ stretch-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
-# wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
-# sudo apt-get update
-# sudo apt-get -y install postgresql-client-$PSQL_TOOLS_VERSION > /dev/null
 echo "...Done"
 
 # Take the backup
@@ -109,7 +123,8 @@ else
   ENCRYPTION=""
 fi
 
-echo "Creating DB restore instance with values:"
+echo "Creating DB restore cluster and instance with values:"
+echo "db cluster identifier: $DB_CLUSTER_IDENTIFIER"
 echo "db instance identifier: $DB_INSTANCE_IDENTIFIER"
 echo "db instance class: $RDS_INSTANCE_TYPE"
 echo "engine: $DB_ENGINE"
@@ -117,42 +132,71 @@ echo "username: $RDS_USERNAME"
 echo "storage: $RDS_STORAGE_SIZE"
 echo "engine version: $DB_ENGINE_VERSION"
 
-aws rds create-db-instance $OPTS $ENCRYPTION \
-  --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
-  --db-instance-class $RDS_INSTANCE_TYPE \
-  --engine $DB_ENGINE \
-  --master-username $RDS_USERNAME \
-  --master-user-password $RDS_PASSWORD \
-  --vpc-security-group-ids $RDS_SECURITY_GROUP \
-  --no-multi-az \
-  --storage-type gp2 \
-  --allocated-storage $RDS_STORAGE_SIZE \
-  --engine-version $DB_ENGINE_VERSION \
-  --no-publicly-accessible \
-  --db-subnet-group $SUBNET_GROUP_NAME \
-  --backup-retention-period 0 \
-  --license-model $DB_LICENSE_MODEL > /dev/null
-
+aws rds create-db-cluster \
+    --db-cluster-identifier $DB_CLUSTER_IDENTIFIER \
+    --engine $DB_ENGINE \
+    --engine-version $DB_ENGINE_VERSION \
+    --master-username $RDS_USERNAME \
+    --master-user-password $RDS_PASSWORD \
+    --db-subnet-group-name $SUBNET_GROUP_NAME \
+    --vpc-security-group-ids $RDS_SECURITY_GROUP > /dev/null
+    
 # Wait for the rds endpoint to be available before restoring to it
-function rds_status {
-  aws rds describe-db-instances \
-  --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
-  --query 'DBInstances[0].DBInstanceStatus' \
+function rds_cluster_status {
+  aws rds describe-db-clusters \
+  --db-cluster-identifier $DB_CLUSTER_IDENTIFIER \
+  --query 'DBClusters[0].DBClusterStatus' \
   --output text
 }
 
-while [[ ! $(rds_status) == "available" ]]; do
+while [[ ! $(rds_cluster_status) == "available" ]]; do
   echo "DB server is not online yet ... sleeping"
   sleep 60s
 done
 
-echo "...DB restore instance created"
+echo "...DB restore cluster created"
 
 # Our restore DB Address
-RESTORE_ENDPOINT=$(aws rds describe-db-instances \
-  --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
-  --query 'DBInstances[0].Endpoint.Address' \
+RESTORE_ENDPOINT=$(aws rds describe-db-cluster \
+  --db-instance-identifier $DB_CLUSTER_IDENTIFIER \
+  --query 'DBClusters[0].Endpoint.Address' \
   --output text)
+
+# aws rds create-db-instance $OPTS $ENCRYPTION \
+#   --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
+#   --db-instance-class $RDS_INSTANCE_TYPE \
+#   --engine $DB_ENGINE \
+#   --master-username $RDS_USERNAME \
+#   --master-user-password $RDS_PASSWORD \
+#   --vpc-security-group-ids $RDS_SECURITY_GROUP \
+#   --no-multi-az \
+#   --storage-type gp2 \
+#   --allocated-storage $RDS_STORAGE_SIZE \
+#   --engine-version $DB_ENGINE_VERSION \
+#   --no-publicly-accessible \
+#   --db-subnet-group $SUBNET_GROUP_NAME \
+#   --license-model $DB_LICENSE_MODEL > /dev/null
+
+# Wait for the rds endpoint to be available before restoring to it
+# function rds_status {
+#   aws rds describe-db-instances \
+#   --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
+#   --query 'DBInstances[0].DBInstanceStatus' \
+#   --output text
+# }
+
+# while [[ ! $(rds_status) == "available" ]]; do
+#   echo "DB server is not online yet ... sleeping"
+#   sleep 60s
+# done
+
+# echo "...DB restore instance created"
+
+# # Our restore DB Address
+# RESTORE_ENDPOINT=$(aws rds describe-db-instances \
+#   --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
+#   --query 'DBInstances[0].Endpoint.Address' \
+#   --output text)
 
 echo "Restoring Postgres backup..."
 psql --set ON_ERROR_STOP=on -h $RESTORE_ENDPOINT -U $RDS_USERNAME -d $DB_NAME < $RESTORE_FILE
