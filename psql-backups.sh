@@ -62,7 +62,7 @@ aws configure set s3.signature_version s3v4
 # Install the postgres tools matching the engine version
 echo "Postgres dump. installing dependencies..."
 
-sudo yum install -y postgresql$PSQL_TOOLS_VERSION > /dev/null
+sudo amazon-linux-extras install -y postgresql$PSQL_TOOLS_VERSION > /dev/null
 # echo "deb http://apt.postgresql.org/pub/repos/apt/ stretch-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
 # wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
 # sudo apt-get update
@@ -83,7 +83,7 @@ fi
 
 # Upload it to s3
 echo "Copying dump file to s3 bucket: s3://$BACKUPS_BUCKET/$SERVICE_NAME/rds/"
-aws s3 cp --profile backup --region $BACKUPS_BUCKET_REGION --only-show-errors $DUMP_FILE s3://$BACKUPS_BUCKET/$SERVICE_NAME/rds/
+aws s3 cp --region $BACKUPS_BUCKET_REGION --only-show-errors $DUMP_FILE s3://$BACKUPS_BUCKET/$SERVICE_NAME/rds/
 
 # Create SQL script
 echo "Expanding & removing COMMENT ON EXTENSION from dump file..."
