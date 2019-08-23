@@ -83,7 +83,7 @@ fi
 
 # Upload it to s3
 echo "Copying dump file to s3 bucket: s3://$BACKUPS_BUCKET/$SERVICE_NAME/rds/"
-aws s3 cp --region $BACKUPS_BUCKET_REGION --only-show-errors $DUMP_FILE s3://$BACKUPS_BUCKET/$SERVICE_NAME/rds/
+aws s3 cp --profile backup --region $BACKUPS_BUCKET_REGION --only-show-errors $DUMP_FILE s3://$BACKUPS_BUCKET/$SERVICE_NAME/rds/
 
 # Create SQL script
 echo "Expanding & removing COMMENT ON EXTENSION from dump file..."
