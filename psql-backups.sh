@@ -189,7 +189,7 @@ RESTORE_ENDPOINT=$(aws rds describe-db-instances \
   --output text)
 
 echo "Restoring Postgres backup..."
-psql --set ON_ERROR_STOP=on -h $RESTORE_ENDPOINT -U $RDS_USERNAME < $RESTORE_FILE
+psql --set ON_ERROR_STOP=on -h $RESTORE_ENDPOINT -U $RDS_USERNAME -d $DB_NAME < $RESTORE_FILE
 echo "...Done"
 
 
