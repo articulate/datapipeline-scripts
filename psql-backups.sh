@@ -134,6 +134,7 @@ echo "engine version: $DB_ENGINE_VERSION"
 
 aws rds create-db-cluster \
     --db-cluster-identifier $DB_CLUSTER_IDENTIFIER \
+    --database-name $DB_NAME \
     --engine $DB_ENGINE \
     --engine-version $DB_ENGINE_VERSION \
     --master-username $RDS_USERNAME \
