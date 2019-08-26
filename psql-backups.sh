@@ -14,41 +14,41 @@ function cleanup_on_exit {
   echo "Trap EXIT called..."
   echo "If this script exited prematurely, check stderr for the exit error message"
 
-#   # if restore instance exists, delete it
-#   ERROR=$(aws rds describe-db-instances --db-instance-identifier $DB_INSTANCE_IDENTIFIER 2>&1)
-#   RET_CODE=$?
+  # if restore instance exists, delete it
+  ERROR=$(aws rds describe-db-instances --db-instance-identifier $DB_INSTANCE_IDENTIFIER 2>&1)
+  RET_CODE=$?
 
-#   DELETE_RET_CODE=0
-#   if [[ $RET_CODE == 0 ]]; then
-#     echo "Deleting restore DB instance $DB_INSTANCE_IDENTIFIER..."
-#     ERROR=$(aws rds delete-db-instance --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
-#       --skip-final-snapshot 2>&1)
-#     RET_CODE=$?
-#   fi
+  DELETE_RET_CODE=0
+  if [[ $RET_CODE == 0 ]]; then
+    echo "Deleting restore DB instance $DB_INSTANCE_IDENTIFIER..."
+    ERROR=$(aws rds delete-db-instance --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
+      --skip-final-snapshot 2>&1)
+    RET_CODE=$?
+  fi
   
-#   # this if statement is a catch all for any errors with the restore instance db deletion
-#   if [[ $RET_CODE != 0 ]]; then
-#     echo $ERROR
-#     exit $RET_CODE
-#   fi
+  # this if statement is a catch all for any errors with the restore instance db deletion
+  if [[ $RET_CODE != 0 ]]; then
+    echo $ERROR
+    exit $RET_CODE
+  fi
   
-#   # if restore cluster exists, delete it
-#   ERROR_CLUSTER=$(aws rds describe-db-clusters --db-cluster-identifier $DB_CLUSTER_IDENTIFIER 2>&1)
-#   RET_CLUSER_CODE=$?
+  # if restore cluster exists, delete it
+  ERROR_CLUSTER=$(aws rds describe-db-clusters --db-cluster-identifier $DB_CLUSTER_IDENTIFIER 2>&1)
+  RET_CLUSER_CODE=$?
 
-#   DELETE_RET_CLUSTER_CODE=0
-#   if [[ $RET_CLUSER_CODE == 0 ]]; then
-#     echo "Deleting restore DB cluster $DB_CLUSTER_IDENTIFIER..."
-#     ERROR_CLUSTER=$(aws rds delete-db-cluster --db-cluster-identifier $DB_CLUSTER_IDENTIFIER \
-#       --skip-final-snapshot 2>&1)
-#     RET_CLUSER_CODE=$?
-#   fi
+  DELETE_RET_CLUSTER_CODE=0
+  if [[ $RET_CLUSER_CODE == 0 ]]; then
+    echo "Deleting restore DB cluster $DB_CLUSTER_IDENTIFIER..."
+    ERROR_CLUSTER=$(aws rds delete-db-cluster --db-cluster-identifier $DB_CLUSTER_IDENTIFIER \
+      --skip-final-snapshot 2>&1)
+    RET_CLUSER_CODE=$?
+  fi
 
-#   # this if statement is a catch all for any errors with the restore cluster db deletion
-#   if [[ $RET_CLUSER_CODE != 0 ]]; then
-#     echo $ERROR_CLUSTER
-#     exit $RET_CLUSER_CODE
-#   fi
+  # this if statement is a catch all for any errors with the restore cluster db deletion
+  if [[ $RET_CLUSER_CODE != 0 ]]; then
+    echo $ERROR_CLUSTER
+    exit $RET_CLUSER_CODE
+  fi
 
 }
 
