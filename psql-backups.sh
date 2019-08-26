@@ -86,7 +86,7 @@ echo "...Done"
 # Take the backup
 echo "Taking the backup..."
 export PGPASSWORD=$RDS_PASSWORD
-pg_dump -Fc -h $RDS_ENDPOINT -U $RDS_USERNAME -f $DUMP_FILE
+pg_dump -Fc -h $RDS_ENDPOINT -U $RDS_USERNAME -d $DB_NAME -f $DUMP_FILE
 echo "...Done"
 
 # Verify the dump file isn't empty before continuing
