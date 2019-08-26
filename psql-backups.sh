@@ -114,7 +114,7 @@ fi
 
 
 # Create the RDS restore instance
-# OPTS="--db-name $DB_NAME"
+OPTS="--db-name $DB_NAME"
 
 # RDS encryption specific options
 if [[ $RDS_INSTANCE_TYPE != "db.t2.micro" ]]; then
@@ -134,6 +134,7 @@ echo "engine version: $DB_ENGINE_VERSION"
 
 aws rds create-db-cluster \
     --db-cluster-identifier $DB_CLUSTER_IDENTIFIER \
+    --database-name $DB_NAME \
     --engine $DB_ENGINE \
     --engine-version $DB_ENGINE_VERSION \
     --master-username $RDS_USERNAME \
@@ -188,7 +189,7 @@ RESTORE_ENDPOINT=$(aws rds describe-db-instances \
   --output text)
 
 echo "Restoring Postgres backup..."
-psql --set ON_ERROR_STOP=on -h $RESTORE_ENDPOINT -U $RDS_USERNAME < $RESTORE_FILE
+psql --set ON_ERROR_STOP=on -h $RESTORE_ENDPOINT -U $RDS_USERNAME -d $DB_NAME < $RESTORE_FILE
 echo "...Done"
 
 
