@@ -86,7 +86,11 @@ echo "...Done"
 # Take the backup
 echo "Taking the backup..."
 export PGPASSWORD=$RDS_PASSWORD
+if [[ "$majorVersion" == "9" ]]; then
 pg_dump -Fc -h $RDS_ENDPOINT -U $RDS_USERNAME -f $DUMP_FILE
+else 
+pg_dumpall --globals-only -U $RDS_USERNAME -h $RDS_ENDPOINT -f $DUMP_FILE
+fi
 echo "...Done"
 
 # Verify the dump file isn't empty before continuing
