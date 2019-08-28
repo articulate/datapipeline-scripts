@@ -70,7 +70,7 @@ PSQL_TOOLS_VERSION=$(echo $DB_ENGINE_VERSION | awk -F\. '{print $1"."$2}')
 
 # package name changed 10 on
 if [[ "$majorVersion" == "10" || "$majorVersion" == "11" ]]; then
-PSQL_TOOLS_VERSION="$majorVersion"
+  PSQL_TOOLS_VERSION="$majorVersion"
 fi
 
 DUMP_FILE=$DUMP.sql
@@ -87,9 +87,9 @@ echo "...Done"
 echo "Taking the backup..."
 export PGPASSWORD=$RDS_PASSWORD
 if [[ "$majorVersion" == "9" ]]; then
-pg_dump -Fc -h $RDS_ENDPOINT -U $RDS_USERNAME -f $DUMP_FILE
+  pg_dump -Fc -h $RDS_ENDPOINT -U $RDS_USERNAME -f $DUMP_FILE
 else 
-pg_dumpall --globals-only -U $RDS_USERNAME -h $RDS_ENDPOINT -f $DUMP_FILE
+  pg_dumpall --globals-only -U $RDS_USERNAME -h $RDS_ENDPOINT -f $DUMP_FILE
 fi
 echo "...Done"
 
