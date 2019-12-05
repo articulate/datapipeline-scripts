@@ -150,6 +150,10 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
     exit 1
   fi
 
+  # Transfer dump file to the permanent backup bucket
+  echo "Copying dump file to s3 bucket: s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/"
+  aws s3 cp --profile backup $SSE --only-show-errors s3://$BACKUP_TEMP_BUCKET/$DUMP_FILE s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/
+
 else # Our default db is Postgres
   majorVersion="${DB_ENGINE_VERSION%%.*}"
   PSQL_TOOLS_VERSION=$(echo $DB_ENGINE_VERSION | awk -F\. '{print $1$2}')
@@ -194,7 +198,7 @@ else # Our default db is Postgres
 
   # Verify the restore file isn't empty before continuing
   if [[ ! -s $RESTORE_FILE ]]; then
-    echo "Error dump file downloaded from s3 has no data"
+    echo "Error restore file has no data"
     exit 2
   fi
 fi
@@ -317,10 +321,6 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
     echo "Task status: $RESTORE_TASK_STATUS"
     exit 1
   fi
-
-  # Transfer dump file to the permanent backup bucket
-  echo "Copying dump file to s3 bucket: s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/"
-  aws s3 cp --profile backup $SSE --only-show-errors s3://$BACKUP_TEMP_BUCKET/$DUMP_FILE s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/
 
   # Cleanup dump file from the temp backup bucket
   echo "Removing dump file from the temp backups bucket: s3://$BACKUP_TEMP_BUCKET/"
