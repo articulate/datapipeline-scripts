@@ -84,6 +84,14 @@ echo "[profile backup]
 role_arn=arn:aws:iam::280225230962:role/$BACKUP_ENV-backup
 credential_source=Ec2InstanceMetadata" > ~/.aws/config
 
+
+########################################
+###                                  ###
+###   Steps to do the backup below   ###
+###                                  ###
+########################################
+
+
 if [[ $DB_ENGINE == "sqlserver-se" ]]; then
 
   DUMP_FILE=$DUMP.db
@@ -150,6 +158,10 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
     exit 1
   fi
 
+  # Transfer dump file to the permanent backup bucket
+  echo "Copying dump file to s3 bucket: s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/"
+  aws s3 cp --profile backup $SSE --only-show-errors s3://$BACKUP_TEMP_BUCKET/$DUMP_FILE s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/
+
 else # Our default db is Postgres
   majorVersion="${DB_ENGINE_VERSION%%.*}"
   PSQL_TOOLS_VERSION=$(echo $DB_ENGINE_VERSION | awk -F\. '{print $1$2}')
@@ -194,12 +206,18 @@ else # Our default db is Postgres
 
   # Verify the restore file isn't empty before continuing
   if [[ ! -s $RESTORE_FILE ]]; then
-    echo "Error dump file downloaded from s3 has no data"
+    echo "Error restore file has no data"
     exit 2
   fi
 fi
 
-# Create the RDS restore instance
+
+######################################################
+###                                                ###
+###   Steps to create restore RDS instance below   ###
+###                                                ###
+######################################################
+
 
 # Sql engine specific options
 if [[ $DB_ENGINE == "sqlserver-se" ]]; then
@@ -260,6 +278,14 @@ RESTORE_ENDPOINT=$(aws rds describe-db-instances \
   --query 'DBInstances[0].Endpoint.Address' \
   --output text)
 
+
+########################################
+###                                  ###
+###   Steps to do the restore below  ###
+###                                  ###
+########################################
+
+
 if [[ $DB_ENGINE == "sqlserver-se" ]]; then
   # Wait for option group to be insync
   function rds_option_group {
@@ -317,10 +343,6 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
     echo "Task status: $RESTORE_TASK_STATUS"
     exit 1
   fi
-
-  # Transfer dump file to the permanent backup bucket
-  echo "Copying dump file to s3 bucket: s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/"
-  aws s3 cp --profile backup $SSE --only-show-errors s3://$BACKUP_TEMP_BUCKET/$DUMP_FILE s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/
 
   # Cleanup dump file from the temp backup bucket
   echo "Removing dump file from the temp backups bucket: s3://$BACKUP_TEMP_BUCKET/"
