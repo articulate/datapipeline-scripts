@@ -84,6 +84,14 @@ echo "[profile backup]
 role_arn=arn:aws:iam::280225230962:role/$BACKUP_ENV-backup
 credential_source=Ec2InstanceMetadata" > ~/.aws/config
 
+
+########################################
+###                                  ###
+###   Steps to do the backup below   ###
+###                                  ###
+########################################
+
+
 if [[ $DB_ENGINE == "sqlserver-se" ]]; then
 
   DUMP_FILE=$DUMP.db
@@ -203,7 +211,13 @@ else # Our default db is Postgres
   fi
 fi
 
-# Create the RDS restore instance
+
+######################################################
+###                                                ###
+###   Steps to create restore RDS instance below   ###
+###                                                ###
+######################################################
+
 
 # Sql engine specific options
 if [[ $DB_ENGINE == "sqlserver-se" ]]; then
@@ -263,6 +277,14 @@ RESTORE_ENDPOINT=$(aws rds describe-db-instances \
   --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
   --query 'DBInstances[0].Endpoint.Address' \
   --output text)
+
+
+########################################
+###                                  ###
+###   Steps to do the restore below  ###
+###                                  ###
+########################################
+
 
 if [[ $DB_ENGINE == "sqlserver-se" ]]; then
   # Wait for option group to be insync
