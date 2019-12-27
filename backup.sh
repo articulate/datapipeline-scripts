@@ -166,20 +166,23 @@ else # Our default db is Postgres
   majorVersion="${DB_ENGINE_VERSION%%.*}"
   PSQL_TOOLS_VERSION=$(echo $DB_ENGINE_VERSION | awk -F\. '{print $1$2}')
 
-  # package name changed 10 on
+  # Install the postgres tools matching the engine version
+  echo "Postgres dump. Installing dependencies..."
+
   if [[ "$majorVersion" == "10" || "$majorVersion" == "11" ]]; then
-    PSQL_TOOLS_VERSION="$majorVersion"
+    # we use the amazon-linux-2 AMI for postgres versions 10 and 11
+    # so install the postgresql package using amazon-linux-extras
+    sudo amazon-linux-extras install -y postgresql$majorVersion > /dev/null
+  else
+    sudo yum install -y postgresql$PSQL_TOOLS_VERSION > /dev/null
   fi
+
+  echo "...Done installing dependencies."
 
   DUMP_FILE=$DUMP.sql
 
   # Enable s3 signature version v4 (for aws bucket server side encryption)
   aws configure set s3.signature_version s3v4
-
-  # Install the postgres tools matching the engine version
-  echo "Postgres dump. installing dependencies..."
-  sudo yum install -y postgresql$PSQL_TOOLS_VERSION > /dev/null
-  echo "...Done"
 
   # Take the backup
   echo "Taking the backup..."
