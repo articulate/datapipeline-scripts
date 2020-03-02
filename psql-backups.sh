@@ -2,8 +2,9 @@
 
 # AWS Data Pipeline RDS backup and verification automation relying on Amazon Linux and S3
 
-# exit immediately if a command exit code is not 0 or a variable is undefined
-set -euo pipefail
+# Ensure the return value of a pipeline is the last command to exit with a non-zero status, 
+# or zero if all commands in were successful, and exit if a variable is undefined.
+set -uo pipefail
 
 export AWS_DEFAULT_REGION=$AWS_REGION
 
@@ -27,7 +28,8 @@ function cleanup_on_exit {
   fi
   
   # this if statement is a catch all for any errors with the restore instance db deletion
-  if [[ $RET_CODE != 0 ]]; then
+  # except when a DBInstance is not found, so we can still delete the cluster if it exists
+  if [[ $RET_CODE != 0 && ! $ERROR =~ "An error occurred (DBInstanceNotFound)" ]]; then
     echo $ERROR
     exit $RET_CODE
   fi
