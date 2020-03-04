@@ -86,7 +86,7 @@ echo "...Done"
 
 echo "Taking the backup..."
 # Using RDS IAM auth token
-export PGPASSWORD="$(aws rds generate-db-auth-token --hostname=$RDS_ENDPOINT  --port=5432 --username=$RDS_USERNAME --region=AWS_REGION)"
+export PGPASSWORD="$(aws rds generate-db-auth-token --hostname=$RDS_ENDPOINT  --port=5432 --username=$RDS_USERNAME --region=$AWS_REGION)"
 
 if [[ "$majorVersion" == "9" ]]; then
   pg_dump -Fc -h $RDS_ENDPOINT -U $RDS_USERNAME -d $DB_NAME -f $DUMP_FILE -N apgcc
