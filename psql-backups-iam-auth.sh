@@ -90,23 +90,11 @@ export PGPASSWORD="$(aws rds generate-db-auth-token --hostname=$RDS_ENDPOINT  --
 wget https://s3.amazonaws.com/rds-downloads/rds-ca-2019-root.pem
 
 if [[ "$majorVersion" == "9" ]]; then
-  pg_dump -Fc -h $RDS_ENDPOINT -U $RDS_USERNAME -d $DB_NAME -f $DUMP_FILE -N apgcc
+  pg_dump -Fc -h $RDS_ENDPOINT -U $RDS_IAM_AUTH_USERNAME -d $DB_NAME -f $DUMP_FILE -N apgcc
 else
-  pg_dumpall --globals-only -U $RDS_USERNAME -h $RDS_ENDPOINT -f $DUMP_FILE -N apgcc
+  pg_dumpall --globals-only -U $RDS_IAM_AUTH_USERNAME -h $RDS_ENDPOINT -f $DUMP_FILE -N apgcc
 fi
 echo "...Done"
-
-
-
-# Take the backup - old way with password
-#echo "Taking the backup..."
-#export PGPASSWORD=$RDS_PASSWORD
-#if [[ "$majorVersion" == "9" ]]; then
-#  pg_dump -Fc -h $RDS_ENDPOINT -U $RDS_USERNAME -d $DB_NAME -f $DUMP_FILE -N apgcc
-#else
-#  pg_dumpall --globals-only -U $RDS_USERNAME -h $RDS_ENDPOINT -f $DUMP_FILE -N apgcc
-#fi
-#echo "...Done"
 
 # Verify the dump file isn't empty before continuing
 if [[ ! -s $DUMP_FILE ]]; then
@@ -151,13 +139,16 @@ echo "username: $RDS_USERNAME"
 echo "storage: $RDS_STORAGE_SIZE"
 echo "engine version: $DB_ENGINE_VERSION"
 
+# Generate a temporary password to use for the test restore cluster
+export PGPASSWORD=$(openssl rand -base64 32 | tr -cd '[:alnum:]')
+
 aws rds create-db-cluster \
     --db-cluster-identifier $DB_CLUSTER_IDENTIFIER \
     --database-name $DB_NAME \
     --engine $DB_ENGINE \
     --engine-version $DB_ENGINE_VERSION \
     --master-username $RDS_USERNAME \
-    --master-user-password $RDS_PASSWORD \
+    --master-user-password $PGPASSWORD \
     --db-subnet-group-name $SUBNET_GROUP_NAME \
     --vpc-security-group-ids $RDS_SECURITY_GROUP > /dev/null
     
