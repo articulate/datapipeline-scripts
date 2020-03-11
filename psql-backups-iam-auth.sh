@@ -91,7 +91,7 @@ echo "Taking the backup..."
 # Handle both traditional master username and password and IAM authentication enabled databases
 if [[ "$IAM_AUTH_ENABLED" == "true" ]]; then
     echo "Connect via IAM authentication token..."
-    export PGPASSWORD="$(aws rds generate-db-auth-token --hostname=$RDS_ENDPOINT  --port=5432 --username=$RDS_USERNAME --region=$AWS_REGION)"
+    export PGPASSWORD="$(aws rds generate-db-auth-token --hostname=$RDS_ENDPOINT  --port=5432 --username=$RDS_IAM_AUTH_USERNAME --region=$AWS_REGION)"
     wget https://s3.amazonaws.com/rds-downloads/rds-ca-2019-root.pem
 
     if [[ "$majorVersion" == "9" ]]; then
@@ -100,7 +100,7 @@ if [[ "$IAM_AUTH_ENABLED" == "true" ]]; then
         pg_dumpall --globals-only -U $RDS_IAM_AUTH_USERNAME -h $RDS_ENDPOINT -f $DUMP_FILE -N apgcc
     fi
 else
-    echo "Connect via username and passoword..."
+    echo "Connect via username and password..."
     export PGPASSWORD=$RDS_PASSWORD
     
     if [[ "$majorVersion" == "9" ]]; then
