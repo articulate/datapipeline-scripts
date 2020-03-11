@@ -84,15 +84,26 @@ sudo amazon-linux-extras install -y postgresql$PSQL_TOOLS_VERSION > /dev/null
 echo "...Done"
 
 
-echo "Taking the backup..."
-# Using RDS IAM auth token
-export PGPASSWORD="$(aws rds generate-db-auth-token --hostname=$RDS_ENDPOINT  --port=5432 --username=$RDS_USERNAME --region=$AWS_REGION)"
-wget https://s3.amazonaws.com/rds-downloads/rds-ca-2019-root.pem
+# Handle both traditional master username and password and IAM authentication enabled databases
+if [[ "$IAM_AUTH_ENABLED" == "true" ]]; then
+    # Using RDS IAM auth token
+    export PGPASSWORD="$(aws rds generate-db-auth-token --hostname=$RDS_ENDPOINT  --port=5432 --username=$RDS_USERNAME --region=$AWS_REGION)"
+    wget https://s3.amazonaws.com/rds-downloads/rds-ca-2019-root.pem
 
-if [[ "$majorVersion" == "9" ]]; then
-  pg_dump -Fc -h $RDS_ENDPOINT -U $RDS_IAM_AUTH_USERNAME -d $DB_NAME -f $DUMP_FILE -N apgcc
+    if [[ "$majorVersion" == "9" ]]; then
+        pg_dump -Fc -h $RDS_ENDPOINT -U $RDS_IAM_AUTH_USERNAME -d $DB_NAME -f $DUMP_FILE -N apgcc
+    else
+        pg_dumpall --globals-only -U $RDS_IAM_AUTH_USERNAME -h $RDS_ENDPOINT -f $DUMP_FILE -N apgcc
+    fi
 else
-  pg_dumpall --globals-only -U $RDS_IAM_AUTH_USERNAME -h $RDS_ENDPOINT -f $DUMP_FILE -N apgcc
+    export PGPASSWORD=$RDS_PASSWORD
+
+    if [[ "$majorVersion" == "9" ]]; then
+    pg_dump -Fc -h $RDS_ENDPOINT -U $RDS_USERNAME -d $DB_NAME -f $DUMP_FILE -N apgcc
+    else
+        pg_dumpall --globals-only -U $RDS_USERNAME -h $RDS_ENDPOINT -f $DUMP_FILE -N apgcc
+    fi
+
 fi
 echo "...Done"
 
