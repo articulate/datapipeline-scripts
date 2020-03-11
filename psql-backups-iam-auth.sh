@@ -2,8 +2,9 @@
 
 # AWS Data Pipeline RDS backup and verification automation relying on Amazon Linux and S3
 
-# exit immediately if a command exit code is not 0 or a variable is undefined
-set -euo pipefail
+# Ensure the return value of a pipeline is the last command to exit with a non-zero status,
+# or zero if all commands in were successful, and exit if a variable is undefined.
+set -uo pipefail
 
 export AWS_DEFAULT_REGION=$AWS_REGION
 
@@ -25,13 +26,14 @@ function cleanup_on_exit {
       --skip-final-snapshot 2>&1)
     RET_CODE=$?
   fi
-  
+
   # this if statement is a catch all for any errors with the restore instance db deletion
-  if [[ $RET_CODE != 0 ]]; then
+  # except when a DBInstance is not found, so we can still delete the cluster if it exists
+  if [[ $RET_CODE != 0 && ! $ERROR =~ "An error occurred (DBInstanceNotFound)" ]]; then
     echo $ERROR
     exit $RET_CODE
   fi
-  
+
   # if restore cluster exists, delete it
   ERROR_CLUSTER=$(aws rds describe-db-clusters --db-cluster-identifier $DB_CLUSTER_IDENTIFIER 2>&1)
   RET_CLUSER_CODE=$?
@@ -83,10 +85,12 @@ echo "Postgres dump. installing dependencies..."
 sudo amazon-linux-extras install -y postgresql$PSQL_TOOLS_VERSION > /dev/null
 echo "...Done"
 
+# Take the backup
+echo "Taking the backup..."
 
 # Handle both traditional master username and password and IAM authentication enabled databases
 if [[ "$IAM_AUTH_ENABLED" == "true" ]]; then
-    # Using RDS IAM auth token
+    echo "Connect via IAM authentication token..."
     export PGPASSWORD="$(aws rds generate-db-auth-token --hostname=$RDS_ENDPOINT  --port=5432 --username=$RDS_USERNAME --region=$AWS_REGION)"
     wget https://s3.amazonaws.com/rds-downloads/rds-ca-2019-root.pem
 
@@ -96,15 +100,16 @@ if [[ "$IAM_AUTH_ENABLED" == "true" ]]; then
         pg_dumpall --globals-only -U $RDS_IAM_AUTH_USERNAME -h $RDS_ENDPOINT -f $DUMP_FILE -N apgcc
     fi
 else
+    echo "Connect via username and passoword..."
     export PGPASSWORD=$RDS_PASSWORD
-
+    
     if [[ "$majorVersion" == "9" ]]; then
-    pg_dump -Fc -h $RDS_ENDPOINT -U $RDS_USERNAME -d $DB_NAME -f $DUMP_FILE -N apgcc
+        pg_dump -Fc -h $RDS_ENDPOINT -U $RDS_USERNAME -d $DB_NAME -f $DUMP_FILE -N apgcc
     else
         pg_dumpall --globals-only -U $RDS_USERNAME -h $RDS_ENDPOINT -f $DUMP_FILE -N apgcc
     fi
-
 fi
+
 echo "...Done"
 
 # Verify the dump file isn't empty before continuing
@@ -150,8 +155,13 @@ echo "username: $RDS_USERNAME"
 echo "storage: $RDS_STORAGE_SIZE"
 echo "engine version: $DB_ENGINE_VERSION"
 
-# Generate a temporary password to use for the test restore cluster
-export PGPASSWORD=$(openssl rand -base64 32 | tr -cd '[:alnum:]')
+
+if [[ "$IAM_AUTH_ENABLED" == "true" ]]; then
+    # Generate a temporary password to use for the test restore cluster
+    export PGPASSWORD=$(openssl rand -base64 32 | tr -cd '[:alnum:]')
+else
+    export PGPASSWORD=$RDS_PASSWORD
+fi
 
 aws rds create-db-cluster \
     --db-cluster-identifier $DB_CLUSTER_IDENTIFIER \
