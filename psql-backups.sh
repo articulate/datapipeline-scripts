@@ -146,6 +146,7 @@ aws rds create-db-cluster \
     --master-username $RDS_USERNAME \
     --master-user-password $RDS_PASSWORD \
     --db-subnet-group-name $SUBNET_GROUP_NAME \
+    --tags Key=Product,Value=$SERVICE_NAME \
     --vpc-security-group-ids $RDS_SECURITY_GROUP > /dev/null
     
 # Wait for the rds endpoint to be available before restoring to it
@@ -171,6 +172,7 @@ aws rds create-db-instance \
   --no-multi-az \
   --engine-version $DB_ENGINE_VERSION \
   --no-publicly-accessible \
+  --tags Key=Product,Value=$SERVICE_NAME \
   --license-model $DB_LICENSE_MODEL > /dev/null
 
 # Wait for the rds endpoint to be available before restoring to it
