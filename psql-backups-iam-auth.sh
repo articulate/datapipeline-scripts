@@ -124,7 +124,7 @@ aws s3 cp --profile backup --region $BACKUPS_BUCKET_REGION --only-show-errors $D
 
 # Create SQL script
 echo "Expanding & removing COMMENT ON EXTENSION from dump file..."
-pg_restore $DUMP_FILE | sed -e '/COMMENT ON EXTENSION/d' \
+pg_restore -x $DUMP_FILE | sed -e '/COMMENT ON EXTENSION/d' \
 | sed -e '/CREATE SCHEMA apgcc;/d' \
 | sed -e '/ALTER SCHEMA apgcc OWNER TO rdsadmin;/d' > $RESTORE_FILE
 echo "...Done"
