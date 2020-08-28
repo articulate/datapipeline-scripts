@@ -187,7 +187,7 @@ else # Our default db is Postgres
   # Take the backup
   echo "Taking the backup..."
   export PGPASSWORD=$RDS_PASSWORD
-  pg_dump -Fc -h $RDS_ENDPOINT -U $RDS_USERNAME -d $DB_NAME -f $DUMP_FILE -n public
+  pg_dump -Fc -h $RDS_ENDPOINT -U $RDS_USERNAME -d $DB_NAME -f $DUMP_FILE
   echo "...Done"
 
   # Verify the dump file isn't empty before continuing
@@ -199,7 +199,21 @@ else # Our default db is Postgres
   # Upload it to s3
   echo "Copying dump file to s3 bucket: s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/"
   aws s3 cp --profile backup $SSE --only-show-errors $DUMP_FILE s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/
+
+  # Create SQL script
+  echo "Expanding & removing COMMENT ON EXTENSION from dump file..."
+  pg_restore $DUMP_FILE | sed -e '/COMMENT ON EXTENSION/d' \
+    | sed -e '/CREATE SCHEMA apgcc;/d' \
+    | sed -e '/ALTER SCHEMA apgcc OWNER TO rdsadmin;/d' > $RESTORE_FILE
+  echo "...Done"
+
+  # Verify the restore file isn't empty before continuing
+  if [[ ! -s $RESTORE_FILE ]]; then
+    echo "Error restore file has no data"
+    exit 2
+  fi
 fi
+
 
 ######################################################
 ###                                                ###
@@ -339,7 +353,7 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
 
 else # Restore Postgres db
   echo "Restoring Postgres backup..."
-  pg_restore --exit-on-error -h $RESTORE_ENDPOINT -U $RDS_USERNAME -d $DB_NAME $DUMP_FILE
+  psql --set ON_ERROR_STOP=on -h $RESTORE_ENDPOINT -U $RDS_USERNAME -d $DB_NAME < $RESTORE_FILE
   echo "...Done"
 fi
 
