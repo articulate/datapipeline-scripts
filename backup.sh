@@ -353,7 +353,11 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
 
 else # Restore Postgres db
   echo "Restoring Postgres backup..."
-  psql --set ON_ERROR_STOP=on -h $RESTORE_ENDPOINT -U $RDS_USERNAME -d $DB_NAME < $RESTORE_FILE
+  #
+  # temporary - may add psql back later, depending
+  #
+  #psql --set ON_ERROR_STOP=on -h $RESTORE_ENDPOINT -U $RDS_USERNAME -d $DB_NAME < $RESTORE_FILE
+  pg_restore --exit-on-error -h $RESTORE_ENDPOINT -U $RDS_USERNAME $DUMP_FILE
   echo "...Done"
 fi
 
