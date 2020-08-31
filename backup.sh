@@ -187,7 +187,7 @@ else # Our default db is Postgres
   # Take the backup
   echo "Taking the backup..."
   export PGPASSWORD=$RDS_PASSWORD
-  pg_dump -Fc -h $RDS_ENDPOINT -U $RDS_USERNAME -d $DB_NAME -f $DUMP_FILE -n public
+  pg_dump -Fc -h $RDS_ENDPOINT -U $RDS_USERNAME -d $DB_NAME -f $DUMP_FILE -N apgcc
   echo "...Done"
 
   # Verify the dump file isn't empty before continuing
@@ -343,7 +343,7 @@ else # Restore Postgres db
   # temporary - may add psql back later, depending
   #
   #psql --set ON_ERROR_STOP=on -h $RESTORE_ENDPOINT -U $RDS_USERNAME -d $DB_NAME < $RESTORE_FILE
-  pg_restore --exit-on-error -h $RESTORE_ENDPOINT -U $RDS_USERNAME $DUMP_FILE > /dev/null
+  pg_restore --exit-on-error -h $RESTORE_ENDPOINT -U $RDS_USERNAME -d $DB_NAME $DUMP_FILE
   echo "...Done"
 fi
 
