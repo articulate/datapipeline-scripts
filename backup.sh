@@ -343,7 +343,7 @@ else # Restore Postgres db
   # temporary - may add psql back later, depending
   #
   #psql --set ON_ERROR_STOP=on -h $RESTORE_ENDPOINT -U $RDS_USERNAME -d $DB_NAME < $RESTORE_FILE
-  pg_restore -l $DUMP_FILE | grep -v 'COMMENT ON EXTENSION' > pg_restore.list
+  pg_restore -l $DUMP_FILE | grep -v 'COMMENT - EXTENSION' > pg_restore.list
   pg_restore --exit-on-error -h $RESTORE_ENDPOINT -U $RDS_USERNAME -d $DB_NAME -L pg_restore.list $DUMP_FILE
   echo "...Done"
 fi
