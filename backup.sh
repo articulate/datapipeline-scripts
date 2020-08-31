@@ -343,7 +343,7 @@ else # Restore Postgres db
   # temporary - may add psql back later, depending
   #
   #psql --set ON_ERROR_STOP=on -h $RESTORE_ENDPOINT -U $RDS_USERNAME -d $DB_NAME < $RESTORE_FILE
-  pg_restore --exit-on-error -h $RESTORE_ENDPOINT -U $RDS_USERNAME $DUMP_FILE
+  pg_restore --exit-on-error -h $RESTORE_ENDPOINT -U $RDS_USERNAME $DUMP_FILE > /dev/null
   echo "...Done"
 fi
 
