@@ -9,6 +9,11 @@ export AWS_DEFAULT_REGION=us-east-1
 
 # Use trap to print the most recent error message & delete the restore instance
 # when the script exits
+
+function get_time_now {
+  time_now=$(date --utc +%FT%T.%3NZ)
+}
+
 function cleanup_on_exit {
 
   echo "Trap EXIT called..."
@@ -168,6 +173,7 @@ else # Our default db is Postgres
 
   # Install the postgres tools matching the engine version
   echo "Postgres dump. Installing dependencies..."
+  get_time_now && echo $time_now
 
   if [[ "$majorVersion" == "10" || "$majorVersion" == "11" ]]; then
     # we use the amazon-linux-2 AMI for postgres versions 10 and 11
@@ -178,6 +184,7 @@ else # Our default db is Postgres
   fi
 
   echo "...Done installing dependencies."
+  get_time_now && echo $time_now
 
   DUMP_FILE=$DUMP.sql
 
@@ -186,18 +193,22 @@ else # Our default db is Postgres
 
   # Take the backup
   echo "Taking the backup..."
+  get_time_now && echo $time_now
   export PGPASSWORD=$RDS_PASSWORD
   pg_dump -Fc -h $RDS_ENDPOINT -U $RDS_USERNAME -d $DB_NAME -f $DUMP_FILE -N apgcc
   echo "...Done"
+  get_time_now && echo $time_now
 
   # Verify the dump file isn't empty before continuing
   if [[ ! -s $DUMP_FILE ]]; then
     echo "Error dump file has no data"
+    get_time_now && echo $time_now
     exit 2
   fi
 
   # Upload it to s3
   echo "Copying dump file to s3 bucket: s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/"
+  get_time_now && echo $time_now
   aws s3 cp --profile backup $SSE --only-show-errors $DUMP_FILE s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/
 fi
 
@@ -229,6 +240,7 @@ echo "engine: $DB_ENGINE"
 echo "username: $RDS_USERNAME"
 echo "storage: $RDS_STORAGE_SIZE"
 echo "engine version: $DB_ENGINE_VERSION"
+get_time_now && echo $time_now
 
 aws rds create-db-instance $OPTS $ENCRYPTION \
   --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
@@ -256,10 +268,12 @@ function rds_status {
 
 while [[ ! $(rds_status) == "available" ]]; do
   echo "DB server is not online yet ... sleeping"
+  get_time_now && echo $time_now
   sleep 60s
 done
 
 echo "...DB restore instance created"
+get_time_now && echo $time_now
 
 # Our restore DB Address
 RESTORE_ENDPOINT=$(aws rds describe-db-instances \
@@ -339,6 +353,7 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
 
 else # Restore Postgres db
   echo "Restoring Postgres backup..."
+  get_time_now && echo $time_now
   #
   # temporary - may add psql back later, depending
   #
@@ -346,9 +361,12 @@ else # Restore Postgres db
   pg_restore -l $DUMP_FILE | grep -v 'COMMENT - EXTENSION' > pg_restore.list
   pg_restore --exit-on-error -h $RESTORE_ENDPOINT -U $RDS_USERNAME -d $DB_NAME -L pg_restore.list $DUMP_FILE
   echo "...Done"
+  get_time_now && echo $time_now
 fi
 
 # Check in on success
 echo "Checkin to snitch..."
+get_time_now && echo $time_now
 curl $CHECK_IN_URL
 echo "...Done"
+get_time_now && echo $time_now
