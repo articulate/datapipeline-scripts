@@ -8,6 +8,10 @@ set -uo pipefail
 
 export AWS_DEFAULT_REGION=$AWS_REGION
 
+function get_time_now {
+  time_now=$(date --utc +%FT%T.%3NZ)
+}
+
 # Use trap to print the most recent error message & delete the restore instance
 # when the script exits
 function cleanup_on_exit {
@@ -82,11 +86,14 @@ aws configure set s3.signature_version s3v4
 
 # Install the postgres tools matching the engine version
 echo "Postgres dump. installing dependencies..."
+get_time_now && echo $time_now
 sudo amazon-linux-extras install -y postgresql$PSQL_TOOLS_VERSION > /dev/null
 echo "...Done"
+get_time_now && echo $time_now
 
 # Take the backup
 echo "Taking the backup..."
+get_time_now && echo $time_now
 export PGPASSWORD=$RDS_PASSWORD
 if [[ "$majorVersion" == "9" ]]; then
   pg_dump -Fc -h $RDS_ENDPOINT -U $RDS_USERNAME -d $DB_NAME -f $DUMP_FILE -N apgcc
@@ -94,6 +101,7 @@ else
   pg_dumpall --globals-only -U $RDS_USERNAME -h $RDS_ENDPOINT -f $DUMP_FILE
 fi
 echo "...Done"
+get_time_now && echo $time_now
 
 # Verify the dump file isn't empty before continuing
 if [[ ! -s $DUMP_FILE ]]; then
@@ -103,18 +111,22 @@ fi
 
 # Upload it to s3
 echo "Copying dump file to s3 bucket: s3://$BACKUPS_BUCKET/$SERVICE_NAME/rds/"
+get_time_now && echo $time_now
 aws s3 cp --profile backup --region $BACKUPS_BUCKET_REGION --only-show-errors $DUMP_FILE s3://$BACKUPS_BUCKET/$SERVICE_NAME/rds/
 
 # Create SQL script
 echo "Expanding & removing COMMENT ON EXTENSION from dump file..."
+get_time_now && echo $time_now
 pg_restore $DUMP_FILE | sed -e '/COMMENT ON EXTENSION/d' \
 | sed -e '/CREATE SCHEMA apgcc;/d' \
 | sed -e '/ALTER SCHEMA apgcc OWNER TO rdsadmin;/d' > $RESTORE_FILE
 echo "...Done"
+get_time_now && echo $time_now
 
 # Verify the restore file isn't empty before continuing
 if [[ ! -s $RESTORE_FILE ]]; then
 echo "Error dump file downloaded from s3 has no data"
+get_time_now && echo $time_now
 exit 2
 fi
 
@@ -137,6 +149,7 @@ echo "engine: $DB_ENGINE"
 echo "username: $RDS_USERNAME"
 echo "storage: $RDS_STORAGE_SIZE"
 echo "engine version: $DB_ENGINE_VERSION"
+get_time_now && echo $time_now
 
 aws rds create-db-cluster \
     --db-cluster-identifier $DB_CLUSTER_IDENTIFIER \
@@ -158,10 +171,12 @@ function rds_cluster_status {
 
 while [[ ! $(rds_cluster_status) == "available" ]]; do
   echo "DB server is not online yet ... sleeping"
+  get_time_now && echo $time_now
   sleep 60s
 done
 
 echo "...DB restore cluster created"
+get_time_now && echo $time_now
 
 aws rds create-db-instance \
   --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
@@ -183,10 +198,12 @@ function rds_status {
 
 while [[ ! $(rds_status) == "available" ]]; do
   echo "DB server is not online yet ... sleeping"
+  get_time_now && echo $time_now
   sleep 60s
 done
 
 echo "...DB restore instance created"
+get_time_now && echo $time_now
 
 # Our restore DB Address
 RESTORE_ENDPOINT=$(aws rds describe-db-instances \
@@ -195,11 +212,15 @@ RESTORE_ENDPOINT=$(aws rds describe-db-instances \
   --output text)
 
 echo "Restoring Postgres backup..."
+get_time_now && echo $time_now
 psql --set ON_ERROR_STOP=on -h $RESTORE_ENDPOINT -U $RDS_USERNAME -d $DB_NAME < $RESTORE_FILE
 echo "...Done"
+get_time_now && echo $time_now
 
 
 # Check in on success
 echo "Checkin to snitch..."
+get_time_now && echo $time_now
 curl $DMS_URL
 echo "...Done"
+get_time_now && echo $time_now
