@@ -16,8 +16,10 @@ function get_time_now {
 # when the script exits
 function cleanup_on_exit {
 
-  echo "Trap EXIT called..."
-  echo "If this script exited prematurely, check stderr for the exit error message"
+  #in bash function calls within in a function can be unreliable
+  time_now=$(date --utc +%FT%T.%3NZ)
+  echo "$time_now Trap EXIT called..."
+  echo "$time_now If this script exited prematurely, check stderr for the exit error message"
 
   # if restore instance exists, delete it
   ERROR=$(aws rds describe-db-instances --db-instance-identifier $DB_INSTANCE_IDENTIFIER 2>&1)
@@ -85,19 +87,20 @@ DUMP_FILE=$DUMP.sql
 aws configure set s3.signature_version s3v4
 
 # Install the postgres tools matching the engine version
-echo "Postgres dump. installing dependencies..."
-get_time_now && echo $time_now
+get_time_now
+echo "$time_now Postgres dump. installing dependencies..."
 sudo amazon-linux-extras install -y postgresql$PSQL_TOOLS_VERSION > /dev/null
-echo "...Done"
-get_time_now && echo $time_now
+get_time_now
+echo "$time_now ...Done"
 
 # Take the backup
-echo "Taking the backup..."
-get_time_now && echo $time_now
+get_time_now
+echo "$time_now Taking the backup..."
 
 # Handle both traditional master username and password and IAM authentication enabled databases
 if [[ "$IAM_AUTH_ENABLED" == "true" ]]; then
-    echo "Connect via IAM authentication token..."
+    get_time_now
+    echo "$time_now Connect via IAM authentication token..."
     export PGPASSWORD="$(aws rds generate-db-auth-token --hostname=$RDS_ENDPOINT  --port=5432 --username=$RDS_IAM_AUTH_USERNAME --region=$AWS_REGION)"
     wget https://s3.amazonaws.com/rds-downloads/rds-ca-2019-root.pem
 
@@ -107,8 +110,8 @@ if [[ "$IAM_AUTH_ENABLED" == "true" ]]; then
 #        pg_dumpall --globals-only -U $RDS_IAM_AUTH_USERNAME -h $RDS_ENDPOINT -f $DUMP_FILE
 #    fi
 else
-    echo "Connect via username and password..."
-    get_time_now && echo $time_now
+    get_time_now
+    echo "$time_now Connect via username and password..."
     export PGPASSWORD=$RDS_PASSWORD
     
 #    if [[ "$majorVersion" == "9" ]]; then
@@ -118,34 +121,36 @@ else
 #    fi
 fi
 
-echo "...Done"
-get_time_now && echo $time_now
+get_time_now
+echo "$time_now ...Done"
 
 # Verify the dump file isn't empty before continuing
 if [[ ! -s $DUMP_FILE ]]; then
-echo "Error dump file has no data"
-get_time_now && echo $time_now
+get_time_now
+echo "$time_now Error dump file has no data"
 exit 2
 fi
 
 # Upload it to s3
-echo "Copying dump file to s3 bucket: s3://$BACKUPS_BUCKET/$SERVICE_NAME/rds/"
-get_time_now && echo $time_now
+get_time_now
+echo "$time_now Copying dump file to s3 bucket: s3://$BACKUPS_BUCKET/$SERVICE_NAME/rds/"
 aws s3 cp --profile backup --region $BACKUPS_BUCKET_REGION --only-show-errors $DUMP_FILE s3://$BACKUPS_BUCKET/$SERVICE_NAME/rds/
 
 # Create SQL script
-echo "Expanding & removing COMMENT ON EXTENSION from dump file..."
-get_time_now && echo $time_now
+get_time_now
+echo "$time_now Expanding & removing COMMENT ON EXTENSION from dump file..."
+
 pg_restore -x $DUMP_FILE | sed -e '/COMMENT ON EXTENSION/d' \
 | sed -e '/CREATE SCHEMA apgcc;/d' \
 | sed -e '/ALTER SCHEMA apgcc OWNER TO rdsadmin;/d' > $RESTORE_FILE
-echo "...Done"
-get_time_now && echo $time_now
+get_time_now
+echo "$time_now ...Done"
+
 
 # Verify the restore file isn't empty before continuing
 if [[ ! -s $RESTORE_FILE ]]; then
-echo "Error dump file downloaded from s3 has no data"
-get_time_now && echo $time_now
+get_time_now
+echo "$time_now Error dump file downloaded from s3 has no data"
 exit 2
 fi
 
@@ -160,15 +165,16 @@ else
   ENCRYPTION=""
 fi
 
-echo "Creating DB restore cluster and instance with values:"
-echo "db cluster identifier: $DB_CLUSTER_IDENTIFIER"
-echo "db instance identifier: $DB_INSTANCE_IDENTIFIER"
-echo "db instance class: $RDS_INSTANCE_TYPE"
-echo "engine: $DB_ENGINE"
-echo "username: $RDS_USERNAME"
-echo "storage: $RDS_STORAGE_SIZE"
-echo "engine version: $DB_ENGINE_VERSION"
-get_time_now && echo $time_now
+get_time_now
+echo "$time_now Creating DB restore cluster and instance with values:"
+echo "$time_now db cluster identifier: $DB_CLUSTER_IDENTIFIER"
+echo "$time_now db instance identifier: $DB_INSTANCE_IDENTIFIER"
+echo "$time_now db instance class: $RDS_INSTANCE_TYPE"
+echo "$time_now engine: $DB_ENGINE"
+echo "$time_now username: $RDS_USERNAME"
+echo "$time_now storage: $RDS_STORAGE_SIZE"
+echo "$time_now engine version: $DB_ENGINE_VERSION"
+
 
 
 if [[ "$IAM_AUTH_ENABLED" == "true" ]]; then
@@ -197,13 +203,13 @@ function rds_cluster_status {
 }
 
 while [[ ! $(rds_cluster_status) == "available" ]]; do
-  echo "DB server is not online yet ... sleeping"
-  get_time_now && echo $time_now
+  get_time_now
+  echo "$time_now DB server is not online yet ... sleeping"
   sleep 60s
 done
 
-echo "...DB restore cluster created"
-get_time_now && echo $time_now
+get_time_now
+echo "$time_now ...DB restore cluster created"
 
 aws rds create-db-instance \
   --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
@@ -224,13 +230,13 @@ function rds_status {
 }
 
 while [[ ! $(rds_status) == "available" ]]; do
-  echo "DB server is not online yet ... sleeping"
-  get_time_now && echo $time_now
+  get_time_now
+  echo "$time_now DB server is not online yet ... sleeping"
   sleep 60s
 done
 
-echo "...DB restore instance created"
-get_time_now && echo $time_now
+get_time_now
+echo "$time_now ...DB restore instance created"
 
 # Our restore DB Address
 RESTORE_ENDPOINT=$(aws rds describe-db-instances \
@@ -238,16 +244,19 @@ RESTORE_ENDPOINT=$(aws rds describe-db-instances \
   --query 'DBInstances[0].Endpoint.Address' \
   --output text)
 
-echo "Restoring Postgres backup..."
-get_time_now && echo $time_now
+get_time_now
+echo "$time_now Restoring Postgres backup..."
+
 psql --set ON_ERROR_STOP=on -h $RESTORE_ENDPOINT -U $RDS_USERNAME -d $DB_NAME < $RESTORE_FILE
-echo "...Done"
-get_time_now && echo $time_now
+get_time_now
+echo "$time_now ...Done"
+
 
 
 # Check in on success
-echo "Checkin to snitch..."
-get_time_now && echo $time_now
+get_time_now
+echo "$time_now Checkin to snitch..."
+
 curl $DMS_URL
-echo "...Done"
-get_time_now && echo $time_now
+get_time_now
+echo "$time_now ...Done"

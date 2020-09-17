@@ -16,8 +16,10 @@ function get_time_now {
 
 function cleanup_on_exit {
 
-  echo "Trap EXIT called..."
-  echo "If this script exited prematurely, check stderr for the exit error message"
+  #in bash function calls within in a function can be unreliable
+  time_now=$(date --utc +%FT%T.%3NZ)
+  echo "$time_now Trap EXIT called..."
+  echo "$time_now If this script exited prematurely, check stderr for the exit error message"
 
   # if restore instance exists, delete it
   ERROR=$(aws rds describe-db-instances --db-instance-identifier $DB_INSTANCE_IDENTIFIER 2>&1)
@@ -172,8 +174,8 @@ else # Our default db is Postgres
   PSQL_TOOLS_VERSION=$(echo $DB_ENGINE_VERSION | awk -F\. '{print $1$2}')
 
   # Install the postgres tools matching the engine version
-  echo "Postgres dump. Installing dependencies..."
-  get_time_now && echo $time_now
+  get_time_now
+  echo "$time_now Postgres dump. Installing dependencies..."
 
   if [[ "$majorVersion" == "10" || "$majorVersion" == "11" ]]; then
     # we use the amazon-linux-2 AMI for postgres versions 10 and 11
@@ -183,8 +185,8 @@ else # Our default db is Postgres
     sudo yum install -y postgresql$PSQL_TOOLS_VERSION > /dev/null
   fi
 
-  echo "...Done installing dependencies."
-  get_time_now && echo $time_now
+  get_time_now
+  echo "$time_now ...Done installing dependencies."
 
   DUMP_FILE=$DUMP.sql
 
@@ -192,23 +194,24 @@ else # Our default db is Postgres
   aws configure set s3.signature_version s3v4
 
   # Take the backup
-  echo "Taking the backup..."
-  get_time_now && echo $time_now
+  get_time_now
+  echo "$time_now Taking the backup..."
   export PGPASSWORD=$RDS_PASSWORD
   pg_dump -Fc -h $RDS_ENDPOINT -U $RDS_USERNAME -d $DB_NAME -f $DUMP_FILE -N apgcc
-  echo "...Done"
-  get_time_now && echo $time_now
+  get_time_now
+  echo "$time_now ...Done"
+
 
   # Verify the dump file isn't empty before continuing
   if [[ ! -s $DUMP_FILE ]]; then
-    echo "Error dump file has no data"
-    get_time_now && echo $time_now
+    get_time_now
+    echo "$time_now Error dump file has no data"
     exit 2
   fi
 
   # Upload it to s3
-  echo "Copying dump file to s3 bucket: s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/"
-  get_time_now && echo $time_now
+  get_time_now
+  echo "$time_now Copying dump file to s3 bucket: s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/"
   aws s3 cp --profile backup $SSE --only-show-errors $DUMP_FILE s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/
 fi
 
@@ -233,14 +236,14 @@ else
   ENCRYPTION=""
 fi
 
-echo "Creating DB restore instance with values:"
-echo "db instance identifier: $DB_INSTANCE_IDENTIFIER"
-echo "db instance class: $RDS_INSTANCE_TYPE"
-echo "engine: $DB_ENGINE"
-echo "username: $RDS_USERNAME"
-echo "storage: $RDS_STORAGE_SIZE"
-echo "engine version: $DB_ENGINE_VERSION"
-get_time_now && echo $time_now
+get_time_now
+echo "$time_now Creating DB restore instance with values:"
+echo "$time_now db instance identifier: $DB_INSTANCE_IDENTIFIER"
+echo "$time_now db instance class: $RDS_INSTANCE_TYPE"
+echo "$time_now engine: $DB_ENGINE"
+echo "$time_now username: $RDS_USERNAME"
+echo "$time_now storage: $RDS_STORAGE_SIZE"
+echo "$time_now engine version: $DB_ENGINE_VERSION"
 
 aws rds create-db-instance $OPTS $ENCRYPTION \
   --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
@@ -267,13 +270,13 @@ function rds_status {
 }
 
 while [[ ! $(rds_status) == "available" ]]; do
-  echo "DB server is not online yet ... sleeping"
-  get_time_now && echo $time_now
+  get_time_now
+  echo "$time_now DB server is not online yet ... sleeping"
   sleep 60s
 done
 
-echo "...DB restore instance created"
-get_time_now && echo $time_now
+get_time_now
+echo "$time_now ...DB restore instance created"
 
 # Our restore DB Address
 RESTORE_ENDPOINT=$(aws rds describe-db-instances \
@@ -352,21 +355,17 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
   aws s3 rm --profile backup --only-show-errors s3://$BACKUP_TEMP_BUCKET/$DUMP_FILE
 
 else # Restore Postgres db
-  echo "Restoring Postgres backup..."
-  get_time_now && echo $time_now
-  #
-  # temporary - may add psql back later, depending
-  #
-  #psql --set ON_ERROR_STOP=on -h $RESTORE_ENDPOINT -U $RDS_USERNAME -d $DB_NAME < $RESTORE_FILE
+  get_time_now
+  echo "$time_now Restoring Postgres backup..."
   pg_restore -l $DUMP_FILE | grep -v 'COMMENT - EXTENSION' > pg_restore.list
   pg_restore --exit-on-error -h $RESTORE_ENDPOINT -U $RDS_USERNAME -d $DB_NAME -L pg_restore.list $DUMP_FILE
-  echo "...Done"
-  get_time_now && echo $time_now
+  get_time_now
+  echo "$time_now ...Done"
 fi
 
 # Check in on success
-echo "Checkin to snitch..."
-get_time_now && echo $time_now
+get_time_now
+echo "$time_now Checkin to snitch..."
 curl $CHECK_IN_URL
-echo "...Done"
-get_time_now && echo $time_now
+get_time_now
+echo "$time_now ...Done"
