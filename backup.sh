@@ -85,11 +85,11 @@ DUMP=$SERVICE_NAME-$(date +%Y_%m_%d_%H%M%S)
 RESTORE_FILE=restore.sql
 SSE="--sse aws:kms --sse-kms-key-id $KMS_KEY"
 
-if [[ $USE_BACKUPS_ACCOUNT == "false" ]]
+if [[ ${USE_BACKUPS_ACCOUNT:-true} == "true" ]]
 then
-  PROFILE_ARG=""
-else
   PROFILE_ARG="--profile backup"
+else
+  PROFILE_ARG=""
 fi
 
 mkdir -p ~/.aws

@@ -67,11 +67,11 @@ DB_INSTANCE_IDENTIFIER=$DB_ENGINE-$SERVICE_NAME-auto-restore
 DUMP=$SERVICE_NAME-$(date +%Y_%m_%d_%H%M%S)
 RESTORE_FILE=restore.sql
 
-if [[ $USE_BACKUPS_ACCOUNT == "false" ]]
+if [[ ${USE_BACKUPS_ACCOUNT:-true} == "true" ]]
 then
-  PROFILE_ARG=""
-else
   PROFILE_ARG="--profile backup"
+else
+  PROFILE_ARG=""
 fi
 
 mkdir -p ~/.aws
