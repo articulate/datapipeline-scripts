@@ -67,6 +67,13 @@ DB_INSTANCE_IDENTIFIER=$DB_ENGINE-$SERVICE_NAME-auto-restore
 DUMP=$SERVICE_NAME-$(date +%Y_%m_%d_%H%M%S)
 RESTORE_FILE=restore.sql
 
+if [[ $USE_BACKUPS_ACCOUNT == "false" ]]
+then
+  PROFILE_ARG=""
+else
+  PROFILE_ARG="--profile backup"
+fi
+
 mkdir -p ~/.aws
 
 echo "[profile backup]
@@ -119,7 +126,7 @@ fi
 # Upload it to s3
 get_time_now
 echo "$time_now Copying dump file to s3 bucket: s3://$BACKUPS_BUCKET/$SERVICE_NAME/rds/"
-aws s3 cp --profile backup --region $BACKUPS_BUCKET_REGION --only-show-errors $DUMP_FILE s3://$BACKUPS_BUCKET/$SERVICE_NAME/rds/
+aws s3 cp $PROFILE_ARG --region $BACKUPS_BUCKET_REGION --only-show-errors $DUMP_FILE s3://$BACKUPS_BUCKET/$SERVICE_NAME/rds/
 
 # Create SQL script
 get_time_now
