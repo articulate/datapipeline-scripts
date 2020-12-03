@@ -85,6 +85,13 @@ DUMP=$SERVICE_NAME-$(date +%Y_%m_%d_%H%M%S)
 RESTORE_FILE=restore.sql
 SSE="--sse aws:kms --sse-kms-key-id $KMS_KEY"
 
+if [[ $USE_BACKUPS_ACCOUNT == "false" ]]
+then
+  PROFILE_ARG=""
+else
+  PROFILE_ARG="--profile backup"
+fi
+
 mkdir -p ~/.aws
 
 echo "[profile backup]
@@ -167,7 +174,7 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
 
   # Transfer dump file to the permanent backup bucket
   echo "Copying dump file to s3 bucket: s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/"
-  aws s3 cp --profile backup $SSE --only-show-errors s3://$BACKUP_TEMP_BUCKET/$DUMP_FILE s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/
+  aws s3 cp $PROFILE_ARG $SSE --only-show-errors s3://$BACKUP_TEMP_BUCKET/$DUMP_FILE s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/
 
 else # Our default db is Postgres
   majorVersion="${DB_ENGINE_VERSION%%.*}"
@@ -212,7 +219,7 @@ else # Our default db is Postgres
   # Upload it to s3
   get_time_now
   echo "$time_now Copying dump file to s3 bucket: s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/"
-  aws s3 cp --profile backup $SSE --only-show-errors $DUMP_FILE s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/
+  aws s3 cp $PROFILE_ARG $SSE --only-show-errors $DUMP_FILE s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/
 fi
 
 ######################################################
@@ -352,7 +359,7 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
 
   # Cleanup dump file from the temp backup bucket
   echo "Removing dump file from the temp backups bucket: s3://$BACKUP_TEMP_BUCKET/"
-  aws s3 rm --profile backup --only-show-errors s3://$BACKUP_TEMP_BUCKET/$DUMP_FILE
+  aws s3 rm $PROFILE_ARG --only-show-errors s3://$BACKUP_TEMP_BUCKET/$DUMP_FILE
 
 else # Restore Postgres db
   get_time_now
