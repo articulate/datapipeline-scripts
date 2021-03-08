@@ -84,7 +84,7 @@ majorVersion="${DB_ENGINE_VERSION%%.*}"
 PSQL_TOOLS_VERSION=$(echo $DB_ENGINE_VERSION | awk -F\. '{print $1"."$2}')
 
 # package name changed 10 on
-if [[ "$majorVersion" == "10" || "$majorVersion" == "11" ]]; then
+if [[ $majorVersion -ge 10 ]]; then
   PSQL_TOOLS_VERSION="$majorVersion"
 fi
 

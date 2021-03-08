@@ -184,7 +184,7 @@ else # Our default db is Postgres
   get_time_now
   echo "$time_now Postgres dump. Installing dependencies..."
 
-  if [[ "$majorVersion" == "10" || "$majorVersion" == "11" ]]; then
+  if [[ $majorVersion -ge 10 ]]; then
     # we use the amazon-linux-2 AMI for postgres versions 10 and 11
     # so install the postgresql package using amazon-linux-extras
     sudo amazon-linux-extras install -y postgresql$majorVersion > /dev/null
