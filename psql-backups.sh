@@ -95,7 +95,7 @@ aws configure set s3.signature_version s3v4
 
 # Install the postgres tools matching the engine version
 get_time_now
-echo "$time_now Postgres dump. installing dependencies..."
+echo "$time_now Postgres dump. installing dependencies for postgresql$PSQL_TOOLS_VERSION ..."
 if [[ $majorVersion -ge 12 ]]; then
   # amazon-linux-2 doesn't have postgresql packages above V11.
   sudo tee /etc/yum.repos.d/pgdg.repo<<EOF
@@ -112,9 +112,6 @@ else
 fi
 get_time_now
 echo "$time_now ...Done"
-
-
-
 
 # Take the backup
 get_time_now

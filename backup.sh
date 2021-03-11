@@ -179,10 +179,15 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
 else # Our default db is Postgres
   majorVersion="${DB_ENGINE_VERSION%%.*}"
   PSQL_TOOLS_VERSION=$(echo $DB_ENGINE_VERSION | awk -F\. '{print $1$2}')
+  
+  # package name changed 10 on
+  if [[ $majorVersion -ge 10 ]]; then
+    PSQL_TOOLS_VERSION="$majorVersion"
+  fi
 
   # Install the postgres tools matching the engine version
   get_time_now
-  echo "$time_now Postgres dump. Installing dependencies..."
+  echo "$time_now Postgres dump. Installing dependencies for postgresql$PSQL_TOOLS_VERSION ..."
 
   if [[ $majorVersion -ge 12 ]]; then
     # amazon-linux-2 doesn't have postgresql packages above V11.
