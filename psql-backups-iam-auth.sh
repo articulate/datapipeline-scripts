@@ -102,14 +102,14 @@ if [[ $majorVersion -ge 12 ]]; then
   sudo tee /etc/yum.repos.d/pgdg.repo<<EOF
 [pgdg$PSQL_TOOLS_VERSION]
 name=PostgreSQL $PSQL_TOOLS_VERSION for RHEL/CentOS 7 - x86_64
-baseurl=https://download.postgresql.org/pub/repos/yum/$PSQL_TOOLS_VERSION/redhat/rhel-7-x86_64
+baseurl=https://download.postgresql.org/pub/repos/yum/$PSQL_TOOLS_VERSION/redhat/rhel-7-x86_64"
 enabled=1
 gpgcheck=0
 EOF
   sudo yum makecache
-  sudo yum install postgresql$PSQL_TOOLS_VERSION 
+  sudo yum install "postgresql${PSQL_TOOLS_VERSION}"
 else
-  sudo amazon-linux-extras install -y postgresql$PSQL_TOOLS_VERSION > /dev/null
+  sudo amazon-linux-extras install -y "postgresql${PSQL_TOOLS_VERSION}" > /dev/null
 fi
 
 get_time_now
