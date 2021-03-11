@@ -106,7 +106,7 @@ enabled=1
 gpgcheck=0
 EOF
   sudo yum makecache
-  sudo yum install "postgresql${PSQL_TOOLS_VERSION}"
+  sudo yum install -y "postgresql${PSQL_TOOLS_VERSION}"
 else
   sudo amazon-linux-extras install -y "postgresql${PSQL_TOOLS_VERSION}" > /dev/null
 fi

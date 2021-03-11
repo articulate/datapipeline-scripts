@@ -189,12 +189,12 @@ else # Our default db is Postgres
     sudo tee /etc/yum.repos.d/pgdg.repo<<EOF
 [pgdg$PSQL_TOOLS_VERSION]
 name=PostgreSQL $PSQL_TOOLS_VERSION for RHEL/CentOS 7 - x86_64
-baseurl=https://download.postgresql.org/pub/repos/yum/$PSQL_TOOLS_VERSION/redhat/rhel-7-x86_64"
+baseurl=https://download.postgresql.org/pub/repos/yum/$PSQL_TOOLS_VERSION/redhat/rhel-7-x86_64
 enabled=1
 gpgcheck=0
 EOF
     sudo yum makecache
-    sudo yum install "postgresql${PSQL_TOOLS_VERSION}"
+    sudo yum install -y "postgresql${PSQL_TOOLS_VERSION}"
   elif [[ $majorVersion -ge 10 ]] && [[ $majorVersion -lt 12 ]]; then
     # we use the amazon-linux-2 AMI for postgres versions 10 and above
     # so install the postgresql package using amazon-linux-extras
