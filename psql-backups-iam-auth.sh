@@ -84,7 +84,7 @@ majorVersion="${DB_ENGINE_VERSION%%.*}"
 PSQL_TOOLS_VERSION=$(echo $DB_ENGINE_VERSION | awk -F\. '{print $1"."$2}')
 
 # package name changed 10 on
-if [[ "$majorVersion" == "10" || "$majorVersion" == "11" ]]; then
+if [[ $majorVersion -ge 10 ]]; then
   PSQL_TOOLS_VERSION="$majorVersion"
 fi
 
@@ -95,8 +95,23 @@ aws configure set s3.signature_version s3v4
 
 # Install the postgres tools matching the engine version
 get_time_now
-echo "$time_now Postgres dump. installing dependencies..."
-sudo amazon-linux-extras install -y postgresql$PSQL_TOOLS_VERSION > /dev/null
+echo "$time_now Postgres dump. installing dependencies for postgresql$PSQL_TOOLS_VERSION ..."
+
+if [[ $majorVersion -ge 12 ]]; then
+  # amazon-linux-2 doesn't have postgresql packages above V11.
+  sudo tee /etc/yum.repos.d/pgdg.repo<<EOF
+[pgdg$PSQL_TOOLS_VERSION]
+name=PostgreSQL $PSQL_TOOLS_VERSION for RHEL/CentOS 7 - x86_64
+baseurl=https://download.postgresql.org/pub/repos/yum/$PSQL_TOOLS_VERSION/redhat/rhel-7-x86_64"
+enabled=1
+gpgcheck=0
+EOF
+  sudo yum makecache
+  sudo yum install "postgresql${PSQL_TOOLS_VERSION}"
+else
+  sudo amazon-linux-extras install -y "postgresql${PSQL_TOOLS_VERSION}" > /dev/null
+fi
+
 get_time_now
 echo "$time_now ...Done"
 
