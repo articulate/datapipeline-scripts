@@ -162,9 +162,9 @@ aws s3 cp $PROFILE_ARG --region $BACKUPS_BUCKET_REGION --only-show-errors $DUMP_
 get_time_now
 echo "$time_now Expanding & removing COMMENT ON EXTENSION from dump file..."
 
-pg_restore -x $DUMP_FILE | sed -e '/COMMENT ON EXTENSION/d' \
+pg_restore -x $DUMP_FILE -f $RESTORE_FILE | sed -e '/COMMENT ON EXTENSION/d' \
 | sed -e '/CREATE SCHEMA apgcc;/d' \
-| sed -e '/ALTER SCHEMA apgcc OWNER TO rdsadmin;/d' > $RESTORE_FILE
+| sed -e '/ALTER SCHEMA apgcc OWNER TO rdsadmin;/d' 
 get_time_now
 echo "$time_now ...Done"
 
