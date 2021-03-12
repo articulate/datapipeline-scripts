@@ -112,8 +112,10 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
 
   # Install sqlcmd microsoft client libs & cvskit
   echo "Sqlserver dump. installing dependencies..."
-  sudo pip install --upgrade six > /dev/null
-  sudo pip install csvkit > /dev/null
+  sudo yum -y -q update
+  sudo yum install -y -q python3-pip libicu-devel gcc gcc-c++ python3-devel
+  sudo pip3 install --upgrade six > /dev/null
+  sudo pip3 install csvkit > /dev/null
   curl -s https://packages.microsoft.com/keys/microsoft.asc | tee /tmp/microsoft.asc > /dev/null
   sudo rpm --quiet --import /tmp/microsoft.asc
   curl -s https://packages.microsoft.com/config/rhel/6/prod.repo \
