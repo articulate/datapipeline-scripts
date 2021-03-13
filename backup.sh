@@ -113,7 +113,6 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
 
   # Install sqlcmd microsoft client libs & cvskit
   echo "Sqlserver dump. installing dependencies..."
-  sudo yum -y -q update
   sudo yum install -y -q python3-pip libicu-devel gcc gcc-c++ python3-devel
   sudo pip3 install --upgrade six > /dev/null
   sudo pip3 install csvkit > /dev/null
@@ -135,7 +134,7 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
   if [[ $(echo $TASK_OUTPUT | grep "A task has already been issued for database") ]]; then
     (>&2 echo $TASK_OUTPUT)
     exit 1
-  fi
+fi
   
   echo $TASK_OUTPUT > /tmp/task_output
   
