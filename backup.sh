@@ -1,4 +1,5 @@
 #!/bin/bash
+set -x
 
 # AWS Data Pipeline RDS backup and verification automation relying on Amazon Linux and S3
 
@@ -135,6 +136,10 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
     (>&2 echo $TASK_OUTPUT)
     exit 1
   fi
+  
+  echo $TASK_OUTPUT > /tmp/task_output
+  
+  echo "$TASK_OUTPUT" | csvcut -v -c "task_id"
 
   # Get the task id of the backup task status
   echo "Get the task id..."
