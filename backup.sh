@@ -134,7 +134,7 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
   if [[ $(echo $TASK_OUTPUT | grep "A task has already been issued for database") ]]; then
     (>&2 echo $TASK_OUTPUT)
     exit 1
-fi
+  fi
   
   echo $TASK_OUTPUT > /tmp/task_output
 
