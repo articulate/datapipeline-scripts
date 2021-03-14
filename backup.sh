@@ -137,12 +137,10 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
 fi
   
   echo $TASK_OUTPUT > /tmp/task_output
-  
-  echo "$TASK_OUTPUT" | csvcut -v -c "task_id"
 
   # Get the task id of the backup task status
   echo "Get the task id..."
-  TASK_ID=$(echo "$TASK_OUTPUT" | csvcut -c "task_id" | grep "Task Id" | grep -o "[0-9]*")
+  TASK_ID=$(echo "$TASK_OUTPUT" | sed -e "s/\r/\n/g" | csvcut -c "task_id" | grep "Task Id" | grep -o "[0-9]*")
   if [[ -n $TASK_ID ]]; then
     echo "Started mssql backup with task id: $TASK_ID"
   else
@@ -155,7 +153,7 @@ fi
   function backup_task_status {
     sqlcmd_with_backoff $SQLCMD -S $RDS_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q \
     "exec msdb.dbo.rds_task_status @task_id='$TASK_ID'" -W -s "," -k 1 \
-    | csvcut -c "lifecycle" | tail -1
+    | sed -e "s/\r/\n/g" | csvcut -c "lifecycle" | tail -1
   }
 
   BACKUP_TASK_STATUS=$(backup_task_status)
