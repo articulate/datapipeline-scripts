@@ -153,7 +153,7 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
     STATUS=$(sqlcmd_with_backoff $SQLCMD -S $RDS_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q \
     "exec msdb.dbo.rds_task_status @task_id='$TASK_ID'" -W -s "," -k 1)
     echo $STATUS > /tmp/status
-    echo $STATUS | sed -e "s/\r/\n/g" | csvcut -c "lifecycle" | tail -1
+    echo $STATUS | sed -e "s/----- /------\n/g" | csvcut -c "lifecycle" | tail -1
   }
 
   BACKUP_TASK_STATUS=$(backup_task_status)
