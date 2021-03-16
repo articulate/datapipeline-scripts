@@ -112,10 +112,9 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
 
   # Install sqlcmd microsoft client libs & cvskit
   echo "Sqlserver dump. installing dependencies..."
-  sudo yum -y -q update
   sudo yum install -y -q python3-pip libicu-devel gcc gcc-c++ python3-devel
-  sudo pip3 install --upgrade six > /dev/null
-  sudo pip3 install csvkit > /dev/null
+  pip3 install --user --upgrade six > /dev/null
+  pip3 install --user csvkit > /dev/null
   curl -s https://packages.microsoft.com/keys/microsoft.asc | tee /tmp/microsoft.asc > /dev/null
   sudo rpm --quiet --import /tmp/microsoft.asc
   curl -s https://packages.microsoft.com/config/rhel/6/prod.repo \
@@ -138,7 +137,7 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
 
   # Get the task id of the backup task status
   echo "Get the task id..."
-  TASK_ID=$(echo "$TASK_OUTPUT" | csvcut -c "task_id" | grep "Task Id" | grep -o "[0-9]*")
+  TASK_ID=$(echo "$TASK_OUTPUT" | sed -e "s/\r/\n/g" | csvcut -c "task_id" | grep "Task Id" | grep -o "[0-9]*")
   if [[ -n $TASK_ID ]]; then
     echo "Started mssql backup with task id: $TASK_ID"
   else
@@ -151,7 +150,7 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
   function backup_task_status {
     sqlcmd_with_backoff $SQLCMD -S $RDS_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q \
     "exec msdb.dbo.rds_task_status @task_id='$TASK_ID'" -W -s "," -k 1 \
-    | csvcut -c "lifecycle" | tail -1
+    | sed -e "s/\r/\n/g" | csvcut -c "lifecycle" | tail -1
   }
 
   BACKUP_TASK_STATUS=$(backup_task_status)
@@ -340,7 +339,7 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
 
   # Get the task id of the restore task status
   echo "Get the task id..."
-  RES_TASK_ID=$(echo "$RES_TASK_OUTPUT" | csvcut -c "task_id" | grep "Task Id" | grep -o "[0-9]*")
+  RES_TASK_ID=$(echo "$RES_TASK_OUTPUT" | sed -e "s/\r/\n/g" | csvcut -c "task_id" | grep "Task Id" | grep -o "[0-9]*")
   if [[ -n $RES_TASK_ID ]]; then
     echo "Started mssql restore with task id: $RES_TASK_ID"
   else
@@ -352,7 +351,7 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
   function restore_task_status {
     sqlcmd_with_backoff $SQLCMD -S $RESTORE_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q \
     "exec msdb.dbo.rds_task_status @task_id='$RES_TASK_ID'" -W -s "," -k 1 \
-    | csvcut -c "lifecycle" | tail -1
+    | sed -e "s/\r/\n/g" | csvcut -c "lifecycle" | tail -1
   }
 
   RESTORE_TASK_STATUS=$(restore_task_status)
