@@ -17,52 +17,36 @@ fail() {
   exit "${2:-1}"
 }
 
-# Use trap to print the most recent error message & delete the restore instance
-# when the script exits
-function cleanup_on_exit {
+# delete the restore instance when the script exits
+cleanup_on_exit() {
+  # shellcheck disable=SC2181
+  [ "$?" -ne 0 ] && _log "Backup did not finish successfully, check stderr for errors"
+  _log "Cleaning up backup"
 
-  #in bash function calls within in a function can be unreliable
-  time_now=$(date -u +"%Y-%m-%dT%H:%M:%S%Z")
-  echo "$time_now Trap EXIT called..."
-  echo "$time_now If this script exited prematurely, check stderr for the exit error message"
+  status=0
 
   # if restore instance exists, delete it
-  ERROR=$(aws rds describe-db-instances --db-instance-identifier $DB_INSTANCE_IDENTIFIER 2>&1)
-  RET_CODE=$?
+  if aws rds describe-db-instances --db-instance-identifier "$DB_INSTANCE_IDENTIFIER" &>/dev/null; then
+    _log "Deleting restore DB instance $DB_INSTANCE_IDENTIFIER..."
 
-  DELETE_RET_CODE=0
-  if [[ $RET_CODE == 0 ]]; then
-    echo "Deleting restore DB instance $DB_INSTANCE_IDENTIFIER..."
-    ERROR=$(aws rds delete-db-instance --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
-      --skip-final-snapshot 2>&1)
-    RET_CODE=$?
-  fi
-
-  # this if statement is a catch all for any errors with the restore instance db deletion
-  # except when a DBInstance is not found, so we can still delete the cluster if it exists
-  if [[ $RET_CODE != 0 && ! $ERROR =~ "An error occurred (DBInstanceNotFound)" ]]; then
-    echo $ERROR
-    exit $RET_CODE
+    # if this fails, capture the exit code so we can exit with that code
+    aws rds delete-db-instance \
+      --db-instance-identifier "$DB_INSTANCE_IDENTIFIER" \
+      --skip-final-snapshot || status=$?
   fi
 
   # if restore cluster exists, delete it
-  ERROR_CLUSTER=$(aws rds describe-db-clusters --db-cluster-identifier $DB_CLUSTER_IDENTIFIER 2>&1)
-  RET_CLUSER_CODE=$?
+  if aws rds describe-db-clusters --db-cluster-identifier "$DB_CLUSTER_IDENTIFIER" &>/dev/null; then
+    _log "Deleting restore DB cluster $DB_CLUSTER_IDENTIFIER..."
 
-  DELETE_RET_CLUSTER_CODE=0
-  if [[ $RET_CLUSER_CODE == 0 ]]; then
-    echo "Deleting restore DB cluster $DB_CLUSTER_IDENTIFIER..."
-    ERROR_CLUSTER=$(aws rds delete-db-cluster --db-cluster-identifier $DB_CLUSTER_IDENTIFIER \
-      --skip-final-snapshot 2>&1)
-    RET_CLUSER_CODE=$?
+    # if this fails, capture the exit code so we can exit with that code
+    aws rds delete-db-cluster \
+      --db-cluster-identifier "$DB_CLUSTER_IDENTIFIER" \
+      --skip-final-snapshot || status=$?
   fi
 
-  # this if statement is a catch all for any errors with the restore cluster db deletion
-  if [[ $RET_CLUSER_CODE != 0 ]]; then
-    echo $ERROR_CLUSTER
-    exit $RET_CLUSER_CODE
-  fi
-
+  # if either of the delete commands failed, exit with that status code instead
+  [ "$status" -ne 0 ] && exit "$status"
 }
 
 trap cleanup_on_exit EXIT

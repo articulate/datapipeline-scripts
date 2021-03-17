@@ -23,23 +23,14 @@ cleanup_on_exit() {
   _log "Cleaning up backup"
 
   # if restore instance exists, delete it
-  ERROR=$(aws rds describe-db-instances --db-instance-identifier $DB_INSTANCE_IDENTIFIER 2>&1)
-  RET_CODE=$?
+  if aws rds describe-db-instances --db-instance-identifier "$DB_INSTANCE_IDENTIFIER" &>/dev/null; then
+    _log "Deleting restore DB instance $DB_INSTANCE_IDENTIFIER..."
 
-  DELETE_RET_CODE=0
-  if [[ $RET_CODE == 0 ]]; then
-    echo "Deleting restore DB instance $DB_INSTANCE_IDENTIFIER..."
-    ERROR=$(aws rds delete-db-instance --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
-      --skip-final-snapshot 2>&1)
-    RET_CODE=$?
+    # if this fails, exit with the status code
+    aws rds delete-db-instance \
+      --db-instance-identifier "$DB_INSTANCE_IDENTIFIER" \
+      --skip-final-snapshot || exit "$?"
   fi
-
-  # this if statement is a catch all for any errors with the restore instance db deletion
-  if [[ $RET_CODE != 0 ]]; then
-    echo $ERROR
-    exit $RET_CODE
-  fi
-
 }
 
 trap cleanup_on_exit EXIT
