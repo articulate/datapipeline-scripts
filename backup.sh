@@ -201,12 +201,10 @@ gpgcheck=0
 EOF
     sudo yum makecache
     sudo yum install -y "postgresql${PSQL_TOOLS_VERSION}"
-  elif [[ $majorVersion -ge 10 ]] && [[ $majorVersion -lt 12 ]]; then
+  else
     # we use the amazon-linux-2 AMI for postgres versions 10 and above
     # so install the postgresql package using amazon-linux-extras
     sudo amazon-linux-extras install -y "postgresql${PSQL_TOOLS_VERSION}" > /dev/null
-  else
-    sudo yum install -y "postgresql${PSQL_TOOLS_VERSION}" > /dev/null
   fi
 
   get_time_now
