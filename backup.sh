@@ -179,7 +179,7 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
 
 else # Our default db is Postgres
   majorVersion="${DB_ENGINE_VERSION%%.*}"
-  PSQL_TOOLS_VERSION=$(echo $DB_ENGINE_VERSION | awk -F\. '{print $1$2}')
+  PSQL_TOOLS_VERSION=$(echo $DB_ENGINE_VERSION | awk -F\. '{print $1"."$2}')
   
   # package name changed 10 on
   if [[ $majorVersion -ge 10 ]]; then
@@ -201,12 +201,10 @@ gpgcheck=0
 EOF
     sudo yum makecache
     sudo yum install -y "postgresql${PSQL_TOOLS_VERSION}"
-  elif [[ $majorVersion -ge 10 ]] && [[ $majorVersion -lt 12 ]]; then
+  else
     # we use the amazon-linux-2 AMI for postgres versions 10 and above
     # so install the postgresql package using amazon-linux-extras
     sudo amazon-linux-extras install -y "postgresql${PSQL_TOOLS_VERSION}" > /dev/null
-  else
-    sudo yum install -y "postgresql${PSQL_TOOLS_VERSION}" > /dev/null
   fi
 
   get_time_now
