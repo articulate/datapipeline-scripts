@@ -58,7 +58,7 @@ function sqlcmd_with_backoff {
     fi
 
     echo "Failure! Retrying in $timeout seconds.." 1>&2
-    sleep $timeout
+    sleep "$timeout"
     attempt=$(( attempt + 1 ))
     timeout=$(( timeout * 2 ))
   done
@@ -72,9 +72,8 @@ function sqlcmd_with_backoff {
 }
 
 SQLCMD=/opt/mssql-tools/bin/sqlcmd-13.0.1.0
-DB_INSTANCE_IDENTIFIER=$DB_ENGINE-$SERVICE_NAME-auto-restore
-DUMP=$SERVICE_NAME-$(date +%Y_%m_%d_%H%M%S)
-RESTORE_FILE=restore.sql
+DB_INSTANCE_IDENTIFIER="${DB_ENGINE}-${SERVICE_NAME}-auto-restore"
+DUMP="${SERVICE_NAME}-$(date +%Y_%m_%d_%H%M%S)"
 SSE="--sse aws:kms --sse-kms-key-id $KMS_KEY"
 
 if [[ ${USE_BACKUPS_ACCOUNT:-true} == "true" ]]
@@ -100,7 +99,7 @@ credential_source=Ec2InstanceMetadata" > ~/.aws/config
 
 if [[ $DB_ENGINE == "sqlserver-se" ]]; then
 
-  DUMP_FILE=$DUMP.db
+  DUMP_FILE="${DUMP}.db"
 
   # Install sqlcmd microsoft client libs & cvskit
   echo "Sqlserver dump. installing dependencies..."
@@ -116,15 +115,14 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
 
   # Run backup and capture the backup task status
   echo "Start the Mssql backup..."
-  TASK_OUTPUT=$(sqlcmd_with_backoff $SQLCMD -S $RDS_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q \
+  TASK_OUTPUT=$(sqlcmd_with_backoff $SQLCMD -S "$RDS_ENDPOINT" -U "$RDS_USERNAME" -P "$RDS_PASSWORD" -Q \
     "exec msdb.dbo.rds_backup_database @source_db_name='$DB_NAME', \
     @s3_arn_to_backup_to='arn:aws:s3:::$BACKUP_TEMP_BUCKET/$DUMP_FILE', \
     @overwrite_S3_backup_file=1;" -W -s ',' -k 1)
 
   # Error (to stderr) if a backup task is already running
-  if [[ $(echo $TASK_OUTPUT | grep "A task has already been issued for database") ]]; then
-    (>&2 echo $TASK_OUTPUT)
-    exit 1
+  if echo "$TASK_OUTPUT" | grep -q "A task has already been issued for database"; then
+    fail "$TASK_OUTPUT"
   fi
 
   # Get the task id of the backup task status
@@ -134,22 +132,22 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
     echo "Started mssql backup with task id: $TASK_ID"
   else
     echo "Error getting task id. Aborting."
-    echo $TASK_ID
+    echo "$TASK_ID"
     exit 1
   fi
 
   # Wait until backup status is SUCCESS before continuing
   function backup_task_status {
-    sqlcmd_with_backoff $SQLCMD -S $RDS_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q \
-    "exec msdb.dbo.rds_task_status @task_id='$TASK_ID'" -W -s "," -k 1 \
-    | sed -e "s/\r/\n/g" | csvcut -c "lifecycle" | tail -1
+    sqlcmd_with_backoff $SQLCMD -S "$RDS_ENDPOINT" -U "$RDS_USERNAME" -P "$RDS_PASSWORD" -Q \
+      "exec msdb.dbo.rds_task_status @task_id='$TASK_ID'" -W -s "," -k 1 \
+      | sed -e "s/\r/\n/g" | csvcut -c "lifecycle" | tail -1
   }
 
   BACKUP_TASK_STATUS=$(backup_task_status)
   echo "Backup status is $BACKUP_TASK_STATUS..."
   TEMP_BACKUP_STATUS=$BACKUP_TASK_STATUS
   while [[ $BACKUP_TASK_STATUS =~ (^CREATED$|^IN_PROGRESS$) ]]; do
-    if [[ $BACKUP_TASK_STATUS != $TEMP_BACKUP_STATUS ]]; then
+    if [[ "$BACKUP_TASK_STATUS" != "$TEMP_BACKUP_STATUS" ]]; then
       echo "Backup status is $BACKUP_TASK_STATUS..."
     fi
     TEMP_BACKUP_STATUS=$BACKUP_TASK_STATUS
@@ -166,8 +164,9 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
   fi
 
   # Transfer dump file to the permanent backup bucket
-  echo "Copying dump file to s3 bucket: s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/"
-  aws s3 cp $PROFILE_ARG $SSE --only-show-errors s3://$BACKUP_TEMP_BUCKET/$DUMP_FILE s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/
+  _log "Copying dump file to s3 bucket: s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/"
+  # shellcheck disable=SC2086
+  aws s3 cp $PROFILE_ARG $SSE --only-show-errors "s3://${BACKUP_TEMP_BUCKET}/${DUMP_FILE}" "s3://${BACKUP_BUCKET}/${BACKUP_ENV}/${SERVICE_NAME}/"
 
 else # Our default db is Postgres
   majorVersion="${DB_ENGINE_VERSION%%.*}"
@@ -183,7 +182,7 @@ else # Our default db is Postgres
 
   if [[ $majorVersion -ge 12 ]]; then
     # amazon-linux-2 doesn't have postgresql packages above V11.
-    sudo tee /etc/yum.repos.d/pgdg.repo<<EOF
+    sudo tee /etc/yum.repos.d/pgdg.repo <<EOF
 [pgdg$PSQL_TOOLS_VERSION]
 name=PostgreSQL $PSQL_TOOLS_VERSION for RHEL/CentOS 7 - x86_64
 baseurl=https://download.postgresql.org/pub/repos/yum/$PSQL_TOOLS_VERSION/redhat/rhel-7-x86_64
@@ -200,7 +199,7 @@ EOF
 
   _log "...Done installing dependencies."
 
-  DUMP_FILE=$DUMP.sql
+  DUMP_FILE="${DUMP}.sql"
 
   # Enable s3 signature version v4 (for aws bucket server side encryption)
   aws configure set s3.signature_version s3v4
@@ -208,18 +207,17 @@ EOF
   # Take the backup
   _log "Taking the backup..."
   export PGPASSWORD=$RDS_PASSWORD
-  pg_dump -Fc -h $RDS_ENDPOINT -U $RDS_USERNAME -d $DB_NAME -f $DUMP_FILE -N apgcc
+  pg_dump -Fc -h "$RDS_ENDPOINT" -U "$RDS_USERNAME" -d "$DB_NAME" -f "$DUMP_FILE" -N apgcc
   _log "...Done"
 
 
   # Verify the dump file isn't empty before continuing
-  if [[ ! -s $DUMP_FILE ]]; then
-    fail "Error dump file has no data" 2
-  fi
+  [ -s "$DUMP_FILE" ] || fail "Error dump file has no data" 2
 
   # Upload it to s3
   _log "Copying dump file to s3 bucket: s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/"
-  aws s3 cp $PROFILE_ARG $SSE --only-show-errors $DUMP_FILE s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/
+  # shellcheck disable=SC2086
+  aws s3 cp $PROFILE_ARG $SSE --only-show-errors "$DUMP_FILE" "s3://${BACKUP_BUCKET}/${BACKUP_ENV}/${SERVICE_NAME}/"
 fi
 
 ######################################################
@@ -251,26 +249,27 @@ _log "username: $RDS_USERNAME"
 _log "storage: $RDS_STORAGE_SIZE"
 _log "engine version: $DB_ENGINE_VERSION"
 
+# shellcheck disable=SC2086
 aws rds create-db-instance $OPTS $ENCRYPTION \
-  --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
-  --db-instance-class $RDS_INSTANCE_TYPE \
-  --engine $DB_ENGINE \
-  --master-username $RDS_USERNAME \
-  --master-user-password $RDS_PASSWORD \
-  --vpc-security-group-ids $RDS_SECURITY_GROUP \
+  --db-instance-identifier "$DB_INSTANCE_IDENTIFIER" \
+  --db-instance-class "$RDS_INSTANCE_TYPE" \
+  --engine "$DB_ENGINE" \
+  --master-username "$RDS_USERNAME" \
+  --master-user-password "$RDS_PASSWORD" \
+  --vpc-security-group-ids "$RDS_SECURITY_GROUP" \
   --no-multi-az \
   --storage-type gp2 \
-  --allocated-storage $RDS_STORAGE_SIZE \
-  --engine-version $DB_ENGINE_VERSION \
+  --allocated-storage "$RDS_STORAGE_SIZE" \
+  --engine-version "$DB_ENGINE_VERSION" \
   --no-publicly-accessible \
-  --db-subnet-group $SUBNET_GROUP_NAME \
+  --db-subnet-group "$SUBNET_GROUP_NAME" \
   --backup-retention-period 0 \
-  --license-model $DB_LICENSE_MODEL > /dev/null
+  --license-model "$DB_LICENSE_MODEL" > /dev/null
 
 # Wait for the rds endpoint to be available before restoring to it
 function rds_status {
   aws rds describe-db-instances \
-  --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
+  --db-instance-identifier "$DB_INSTANCE_IDENTIFIER" \
   --query 'DBInstances[0].DBInstanceStatus' \
   --output text
 }
@@ -284,7 +283,7 @@ _log "...DB restore instance created"
 
 # Our restore DB Address
 RESTORE_ENDPOINT=$(aws rds describe-db-instances \
-  --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
+  --db-instance-identifier "$DB_INSTANCE_IDENTIFIER" \
   --query 'DBInstances[0].Endpoint.Address' \
   --output text)
 
@@ -300,7 +299,7 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
   # Wait for option group to be insync
   function rds_option_group {
     aws rds describe-db-instances \
-      --db-instance-identifier $DB_INSTANCE_IDENTIFIER \
+      --db-instance-identifier "$DB_INSTANCE_IDENTIFIER" \
       --query 'DBInstances[0].OptionGroupMemberships[0].Status' \
       --output text
   }
@@ -312,7 +311,7 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
 
   # Run restore and capture the task status
   echo "Start the Mssql restore..."
-  RES_TASK_OUTPUT=$(sqlcmd_with_backoff $SQLCMD -S $RESTORE_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q \
+  RES_TASK_OUTPUT=$(sqlcmd_with_backoff $SQLCMD -S "$RESTORE_ENDPOINT" -U "$RDS_USERNAME" -P "$RDS_PASSWORD" -Q \
     "exec msdb.dbo.rds_restore_database @restore_db_name='$DB_NAME', \
     @s3_arn_to_restore_from='arn:aws:s3:::$BACKUP_TEMP_BUCKET/$DUMP_FILE';" \
     -W -s ',' -k 1)
@@ -329,16 +328,16 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
 
   # Wait until restore status is SUCCESS before continuing
   function restore_task_status {
-    sqlcmd_with_backoff $SQLCMD -S $RESTORE_ENDPOINT -U $RDS_USERNAME -P $RDS_PASSWORD -Q \
-    "exec msdb.dbo.rds_task_status @task_id='$RES_TASK_ID'" -W -s "," -k 1 \
-    | sed -e "s/\r/\n/g" | csvcut -c "lifecycle" | tail -1
+    sqlcmd_with_backoff $SQLCMD -S "$RESTORE_ENDPOINT" -U "$RDS_USERNAME" -P "$RDS_PASSWORD" -Q \
+      "exec msdb.dbo.rds_task_status @task_id='$RES_TASK_ID'" -W -s "," -k 1 \
+      | sed -e "s/\r/\n/g" | csvcut -c "lifecycle" | tail -1
   }
 
   RESTORE_TASK_STATUS=$(restore_task_status)
   echo "Restore status is $RESTORE_TASK_STATUS..."
   TEMP_RESTORE_STATUS=$RESTORE_TASK_STATUS
   while [[ $RESTORE_TASK_STATUS =~ (^CREATED$|^IN_PROGRESS$) ]]; do
-    if [[ $RESTORE_TASK_STATUS != $TEMP_RESTORE_STATUS ]]; then
+    if [[ "$RESTORE_TASK_STATUS" != "$TEMP_RESTORE_STATUS" ]]; then
       echo "Restore status is $RESTORE_TASK_STATUS..."
     fi
     TEMP_RESTORE_STATUS=$RESTORE_TASK_STATUS
@@ -356,16 +355,17 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
 
   # Cleanup dump file from the temp backup bucket
   echo "Removing dump file from the temp backups bucket: s3://$BACKUP_TEMP_BUCKET/"
-  aws s3 rm $PROFILE_ARG --only-show-errors s3://$BACKUP_TEMP_BUCKET/$DUMP_FILE
+  # shellcheck disable=SC2086
+  aws s3 rm $PROFILE_ARG --only-show-errors "s3://${BACKUP_TEMP_BUCKET}/${DUMP_FILE}"
 
 else # Restore Postgres db
   _log "Restoring Postgres backup..."
-  pg_restore -l $DUMP_FILE | grep -v 'COMMENT - EXTENSION' > pg_restore.list
-  pg_restore --exit-on-error -h $RESTORE_ENDPOINT -U $RDS_USERNAME -d $DB_NAME -L pg_restore.list $DUMP_FILE
+  pg_restore -l "$DUMP_FILE" | grep -v 'COMMENT - EXTENSION' > pg_restore.list
+  pg_restore --exit-on-error -h "$RESTORE_ENDPOINT" -U "$RDS_USERNAME" -d "$DB_NAME" -L pg_restore.list "$DUMP_FILE"
   _log "...Done"
 fi
 
 # Check in on success
 _log "Checkin to snitch..."
-curl $CHECK_IN_URL
+curl "$CHECK_IN_URL"
 _log "...Done"
