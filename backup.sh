@@ -281,6 +281,7 @@ aws rds create-db-instance $OPTS $ENCRYPTION \
   --no-publicly-accessible \
   --db-subnet-group $SUBNET_GROUP_NAME \
   --backup-retention-period 0 \
+  --tags Key=Product,Value=$SERVICE_NAME \
   --license-model $DB_LICENSE_MODEL > /dev/null
 
 # Wait for the rds endpoint to be available before restoring to it
