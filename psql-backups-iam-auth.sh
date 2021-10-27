@@ -128,8 +128,8 @@ _log "Copying dump file to s3 bucket: s3://$BACKUPS_BUCKET/$SERVICE_NAME/rds/"
 # shellcheck disable=SC2086
 aws s3 cp $PROFILE_ARG --region "$BACKUPS_BUCKET_REGION" --only-show-errors "$DUMP_FILE" "s3://${BACKUPS_BUCKET}/${SERVICE_NAME}/rds/"
 
-if [[ "$majorVersion" < "10" ]]; then 
-  _log "Engine version is < 10. Skipping restore test..."
+if [[ "$majorVersion"  -lt "10" ]]; then 
+  _log "Engine version is below 10. Skipping restore test..."
 
   # Check in on success
   _log "Checkin to snitch..."
