@@ -218,6 +218,17 @@ EOF
   _log "Copying dump file to s3 bucket: s3://$BACKUP_BUCKET/$BACKUP_ENV/$SERVICE_NAME/"
   # shellcheck disable=SC2086
   aws s3 cp $PROFILE_ARG $SSE --only-show-errors "$DUMP_FILE" "s3://${BACKUP_BUCKET}/${BACKUP_ENV}/${SERVICE_NAME}/"
+
+  if [[ "$majorVersion" < "10" ]]; then 
+    _log "Engine version is < 10. Skipping restore test..."
+
+    # Check in on success
+    _log "Checkin to snitch..."
+    curl "$DMS_URL"
+    _log "...Done"
+
+    exit
+  fi
 fi
 
 ######################################################
