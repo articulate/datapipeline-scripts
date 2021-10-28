@@ -111,21 +111,11 @@ if [[ "$IAM_AUTH_ENABLED" == "true" ]]; then
   PGPASSWORD="$(aws rds generate-db-auth-token --hostname="$RDS_ENDPOINT"  --port=5432 --username="$RDS_IAM_AUTH_USERNAME" --region="$AWS_REGION")"
   export PGPASSWORD
   wget https://s3.amazonaws.com/rds-downloads/rds-ca-2019-root.pem
-
-  # if [[ "$majorVersion" == "9" ]]; then
-    pg_dump -Fc -h "$RDS_ENDPOINT" -U "$RDS_IAM_AUTH_USERNAME" -d "$DB_NAME" -f "$DUMP_FILE" -N apgcc
-  # else
-  #   pg_dumpall --globals-only -U $RDS_IAM_AUTH_USERNAME -h $RDS_ENDPOINT -f $DUMP_FILE
-  # fi
+  pg_dump -Fc -h "$RDS_ENDPOINT" -U "$RDS_IAM_AUTH_USERNAME" -d "$DB_NAME" -f "$DUMP_FILE" -N apgcc
 else
   _log "Connect via username and password..."
   export PGPASSWORD="$RDS_PASSWORD"
-
-  # if [[ "$majorVersion" == "9" ]]; then
-    pg_dump -Fc -h "$RDS_ENDPOINT" -U "$RDS_USERNAME" -d "$DB_NAME" -f "$DUMP_FILE" -N apgcc
-  # else
-  #   pg_dumpall --globals-only -U $RDS_USERNAME -h $RDS_ENDPOINT -f $DUMP_FILE
-  # fi
+  pg_dump -Fc -h "$RDS_ENDPOINT" -U "$RDS_USERNAME" -d "$DB_NAME" -f "$DUMP_FILE" -N apgcc
 fi
 
 _log "...Done"
@@ -137,6 +127,17 @@ _log "...Done"
 _log "Copying dump file to s3 bucket: s3://$BACKUPS_BUCKET/$SERVICE_NAME/rds/"
 # shellcheck disable=SC2086
 aws s3 cp $PROFILE_ARG --region "$BACKUPS_BUCKET_REGION" --only-show-errors "$DUMP_FILE" "s3://${BACKUPS_BUCKET}/${SERVICE_NAME}/rds/"
+
+if [[ "$majorVersion"  -lt "10" ]]; then 
+  _log "Engine version is below 10. Skipping restore test..."
+
+  # Check in on success
+  _log "Checkin to snitch..."
+  curl "$DMS_URL"
+  _log "...Done"
+
+  exit
+fi
 
 # Create SQL script
 _log "Expanding & removing COMMENT ON EXTENSION from dump file..."
