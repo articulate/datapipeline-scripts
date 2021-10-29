@@ -224,7 +224,7 @@ EOF
 
     # Check in on success
     _log "Checkin to snitch..."
-    curl "$DMS_URL"
+    curl "$CHECK_IN_URL"
     _log "...Done"
 
     exit
