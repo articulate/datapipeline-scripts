@@ -207,7 +207,7 @@ EOF
   # Take the backup
   _log "Taking the backup..."
   export PGPASSWORD=$RDS_PASSWORD
-  pg_dump -Fc -h "$RDS_ENDPOINT" -U "$RDS_USERNAME" -d "$DB_NAME" -f "$DUMP_FILE" -N apgcc
+  pg_dump -Fc -h --no-privileges "$RDS_ENDPOINT" -U "$RDS_USERNAME" -d "$DB_NAME" -f "$DUMP_FILE" -N apgcc
   _log "...Done"
 
 
