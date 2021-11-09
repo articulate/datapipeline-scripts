@@ -207,7 +207,7 @@ EOF
   # Take the backup
   _log "Taking the backup..."
   export PGPASSWORD=$RDS_PASSWORD
-  pg_dump -Fc -h --no-privileges "$RDS_ENDPOINT" -U "$RDS_USERNAME" -d "$DB_NAME" -f "$DUMP_FILE" -N apgcc
+  pg_dump -Fc -h "$RDS_ENDPOINT" -U "$RDS_USERNAME" -d "$DB_NAME" -f "$DUMP_FILE" -N apgcc
   _log "...Done"
 
 
@@ -372,7 +372,7 @@ if [[ $DB_ENGINE == "sqlserver-se" ]]; then
 else # Restore Postgres db
   _log "Restoring Postgres backup..."
   pg_restore -l "$DUMP_FILE" | grep -v 'COMMENT - EXTENSION' > pg_restore.list
-  pg_restore --exit-on-error -h "$RESTORE_ENDPOINT" -U "$RDS_USERNAME" -d "$DB_NAME" -L pg_restore.list "$DUMP_FILE"
+  pg_restore --exit-on-error -x -h "$RESTORE_ENDPOINT" -U "$RDS_USERNAME" -d "$DB_NAME" -L pg_restore.list "$DUMP_FILE"
   _log "...Done"
 fi
 
