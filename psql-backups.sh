@@ -105,7 +105,7 @@ _log "Taking the backup..."
 
 export PGPASSWORD=$RDS_PASSWORD
 if [[ "$majorVersion" == "9" ]]; then
-  pg_dump -Fd -j 4 -h "$RDS_ENDPOINT" -U "$RDS_USERNAME" -d "$DB_NAME" -f "$DUMP_FILE" -N apgcc
+  pg_dump -Ft -j 4 -h "$RDS_ENDPOINT" -U "$RDS_USERNAME" -d "$DB_NAME" -f "$DUMP_FILE" -N apgcc
 else
   pg_dumpall --globals-only -U "$RDS_USERNAME" -h "$RDS_ENDPOINT" -f "$DUMP_FILE"
 fi
@@ -135,7 +135,7 @@ fi
 
 # Create SQL script
 _log "Expanding & removing COMMENT ON EXTENSION from dump file..."
-pg_restore -x "$DUMP_FILE" -f "$RESTORE_FILE" | sed -e '/COMMENT ON EXTENSION/d' \
+pg_restore -x "$DUMP_FILE" -f "$RESTORE_FILE" -Ft | sed -e '/COMMENT ON EXTENSION/d' \
   | sed -e '/CREATE SCHEMA apgcc;/d' \
   | sed -e '/ALTER SCHEMA apgcc OWNER TO rdsadmin;/d'
 _log "...Done"
