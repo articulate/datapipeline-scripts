@@ -107,7 +107,7 @@ _log "Taking the backup..."
 
 export PGPASSWORD=$RDS_PASSWORD
 if [[ "$majorVersion" == "9" ]]; then
-  pg_dump -Ft -j 4 -h "$RDS_ENDPOINT" -U "$RDS_USERNAME" -d "$DB_NAME" -f "$DUMP_FILE" -N apgcc
+  pg_dump -Ft -h "$RDS_ENDPOINT" -U "$RDS_USERNAME" -d "$DB_NAME" -f "$DUMP_FILE" -N apgcc
 else
   pg_dumpall --globals-only -U "$RDS_USERNAME" -h "$RDS_ENDPOINT" -f "$DUMP_FILE"
 fi
