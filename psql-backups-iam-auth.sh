@@ -8,7 +8,7 @@ set -uo pipefail
 
 export AWS_DEFAULT_REGION="$AWS_REGION"
 export START_DATE
-START_DATE=$(date -u +"%Y_%m_%d_%H%M")
+START_DATE=$(date -u +"%Y%m%d-%H%M")
 
 _log() {
   echo "$(date -u +"%Y-%m-%dT%H:%M:%S%Z") $1"
@@ -53,8 +53,8 @@ cleanup_on_exit() {
 
 trap cleanup_on_exit EXIT
 
-DB_CLUSTER_IDENTIFIER="${DB_ENGINE}-${SERVICE_NAME}-auto-restore-cluster-${START_DATE}"
-DB_INSTANCE_IDENTIFIER="${DB_ENGINE}-${SERVICE_NAME}-auto-restore-${START_DATE}"
+DB_CLUSTER_IDENTIFIER="backup-test-cluster-${SERVICE_NAME}-${START_DATE}"
+DB_INSTANCE_IDENTIFIER="backup-test-${DB_ENGINE}-${SERVICE_NAME}-${START_DATE}"
 DUMP="${SERVICE_NAME}-${START_DATE}"
 RESTORE_FILE=restore.sql
 
