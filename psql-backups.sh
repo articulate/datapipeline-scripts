@@ -53,8 +53,14 @@ cleanup_on_exit() {
 
 trap cleanup_on_exit EXIT
 
-DB_CLUSTER_IDENTIFIER="restore-test-cluster-${SERVICE_NAME}-${START_DATE}"
-DB_INSTANCE_IDENTIFIER="restore-test-${DB_ENGINE}-${SERVICE_NAME}-${START_DATE}"
+if [[ ${#SERVICE_NAME} -ge 30  ]]
+then
+  # DB_CLUSTER_IDENTIFIER can only be a max of 63 characters
+  SERVICE_NAME=${SERVICE_NAME:0:29}
+fi
+
+DB_CLUSTER_IDENTIFIER="backup-test-cluster-${SERVICE_NAME}-${START_DATE}"
+DB_INSTANCE_IDENTIFIER="backup-test-${DB_ENGINE}-${SERVICE_NAME}-${START_DATE}"
 DUMP="${SERVICE_NAME}-${START_DATE}"
 RESTORE_FILE=restore.sql
 
