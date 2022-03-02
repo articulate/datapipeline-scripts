@@ -54,13 +54,15 @@ cleanup_on_exit() {
 trap cleanup_on_exit EXIT
 
 if [[ ${#SERVICE_NAME} -ge 30  ]]
-then
+then 
   # DB_CLUSTER_IDENTIFIER can only be a max of 63 characters
-  SERVICE_NAME=${SERVICE_NAME:0:29}
+  TRIM_SERVICE_NAME=${SERVICE_NAME:0:29}
+else
+  TRIM_SERVICE_NAME=$SERVICE_NAME
 fi
 
-DB_CLUSTER_IDENTIFIER="backup-test-cluster-${SERVICE_NAME}-${START_DATE}"
-DB_INSTANCE_IDENTIFIER="backup-test-${DB_ENGINE}-${SERVICE_NAME}-${START_DATE}"
+DB_CLUSTER_IDENTIFIER="backup-test-cluster-${TRIM_SERVICE_NAME}-${START_DATE}"
+DB_INSTANCE_IDENTIFIER="backup-test-${TRIM_SERVICE_NAME}-${START_DATE}"
 DUMP="${SERVICE_NAME}-${START_DATE}"
 RESTORE_DIR=restore
 
