@@ -131,12 +131,16 @@ fi
 _log "...Done"
 
 # Verify the dump file isn't empty before continuing
-[ -s "$DUMP_DIR" ] || fail "Error dump file has no data" 2
+[ -s "$DUMP_DIR" ] || fail "Error dump directory has no data" 2
+
+# Zip backup directory
+_log "Use tar to compress dump directory to file"
+tar -zcvf "$DUMP_DIR.tar.gz" "$DUMP_DIR"
 
 # Upload it to s3
 _log "Copying dump file to s3 bucket: s3://$BACKUPS_BUCKET/$SERVICE_NAME/rds/"
 # shellcheck disable=SC2086
-aws s3 cp $PROFILE_ARG --region "$BACKUPS_BUCKET_REGION" --only-show-errors "$DUMP_DIR" "s3://${BACKUPS_BUCKET}/${SERVICE_NAME}/rds/" --recursive
+aws s3 cp $PROFILE_ARG --region "$BACKUPS_BUCKET_REGION" --only-show-errors "$DUMP_DIR.tar.gz" "s3://${BACKUPS_BUCKET}/${SERVICE_NAME}/rds/" 
 
 if [[ "$majorVersion"  -lt "10" ]]; then 
   _log "Engine version is below 10. Skipping restore test..."
@@ -150,7 +154,7 @@ if [[ "$majorVersion"  -lt "10" ]]; then
 fi
 
 # Create SQL script
-_log "Expanding & removing COMMENT ON EXTENSION from dump file..."
+_log "Expanding & removing COMMENT ON EXTENSION from dump directory..."
 
 pg_restore -x "$DUMP_DIR" -f "$RESTORE_DIR" -Fd | sed -e '/COMMENT ON EXTENSION/d' \
   | sed -e '/CREATE SCHEMA apgcc;/d' \
@@ -158,8 +162,8 @@ pg_restore -x "$DUMP_DIR" -f "$RESTORE_DIR" -Fd | sed -e '/COMMENT ON EXTENSION/
 _log "...Done"
 
 
-# Verify the restore file isn't empty before continuing
-[ -s "$RESTORE_DIR" ] || fail "Error dump file downloaded from s3 has no data" 2
+# Verify the restore directory isn't empty before continuing
+[ -s "$RESTORE_DIR" ] || fail "Error altered dump directory has no data" 2
 
 
 # Create the RDS restore instance
