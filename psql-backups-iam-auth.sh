@@ -54,7 +54,7 @@ cleanup_on_exit() {
 trap cleanup_on_exit EXIT
 
 if [[ ${#SERVICE_NAME} -ge 30  ]]
-then
+then 
   # DB_CLUSTER_IDENTIFIER can only be a max of 63 characters
   SERVICE_NAME=${SERVICE_NAME:0:29}
 fi
@@ -63,7 +63,7 @@ DB_CLUSTER_IDENTIFIER="backup-test-cluster-${SERVICE_NAME}-${START_DATE}"
 DB_INSTANCE_IDENTIFIER="backup-test-${DB_ENGINE}-${SERVICE_NAME}-${START_DATE}"
 DUMP="${SERVICE_NAME}-${START_DATE}"
 DUMP="${SERVICE_NAME}-${START_DATE}"
-RESTORE_FILE=restore.sql
+RESTORE_DIR=restore
 
 if [[ "${USE_BACKUPS_ACCOUNT:-true}" == "true" ]]
 then
@@ -86,7 +86,7 @@ if [[ $majorVersion -ge 10 ]]; then
   PSQL_TOOLS_VERSION="$majorVersion"
 fi
 
-DUMP_FILE="${DUMP}.sql"
+DUMP_DIR="${DUMP}"
 
 # Enable s3 signature version v4 (for aws bucket server side encryption)
 aws configure set s3.signature_version s3v4
@@ -120,22 +120,22 @@ if [[ "$IAM_AUTH_ENABLED" == "true" ]]; then
   PGPASSWORD="$(aws rds generate-db-auth-token --hostname="$RDS_ENDPOINT"  --port=5432 --username="$RDS_IAM_AUTH_USERNAME" --region="$AWS_REGION")"
   export PGPASSWORD
   wget https://s3.amazonaws.com/rds-downloads/rds-ca-2019-root.pem
-  pg_dump -Fd -Z0 -j 3 -h "$RDS_ENDPOINT" -U "$RDS_IAM_AUTH_USERNAME" -d "$DB_NAME" -f "$DUMP_FILE" -N apgcc
+  pg_dump -Fd -Z0 -j 3 -h "$RDS_ENDPOINT" -U "$RDS_IAM_AUTH_USERNAME" -d "$DB_NAME" -f "$DUMP_DIR" -N apgcc
 else
   _log "Connect via username and password..."
   export PGPASSWORD="$RDS_PASSWORD"
-  pg_dump -Fd -Z0 -j 3 -h "$RDS_ENDPOINT" -U "$RDS_USERNAME" -d "$DB_NAME" -f "$DUMP_FILE" -N apgcc
+  pg_dump -Fd -Z0 -j 3 -h "$RDS_ENDPOINT" -U "$RDS_USERNAME" -d "$DB_NAME" -f "$DUMP_DIR" -N apgcc
 fi
 
 _log "...Done"
 
 # Verify the dump file isn't empty before continuing
-[ -s "$DUMP_FILE" ] || fail "Error dump file has no data" 2
+[ -s "$DUMP_DIR" ] || fail "Error dump file has no data" 2
 
 # Upload it to s3
 _log "Copying dump file to s3 bucket: s3://$BACKUPS_BUCKET/$SERVICE_NAME/rds/"
 # shellcheck disable=SC2086
-aws s3 cp $PROFILE_ARG --region "$BACKUPS_BUCKET_REGION" --only-show-errors "$DUMP_FILE" "s3://${BACKUPS_BUCKET}/${SERVICE_NAME}/rds/"
+aws s3 cp $PROFILE_ARG --region "$BACKUPS_BUCKET_REGION" --only-show-errors "$DUMP_DIR" "s3://${BACKUPS_BUCKET}/${SERVICE_NAME}/rds/" --recursive
 
 if [[ "$majorVersion"  -lt "10" ]]; then 
   _log "Engine version is below 10. Skipping restore test..."
@@ -151,14 +151,14 @@ fi
 # Create SQL script
 _log "Expanding & removing COMMENT ON EXTENSION from dump file..."
 
-pg_restore -x "$DUMP_FILE" -f "$RESTORE_FILE" -Ft | sed -e '/COMMENT ON EXTENSION/d' \
+pg_restore -x "$DUMP_DIR" -f "$RESTORE_DIR" -Fd | sed -e '/COMMENT ON EXTENSION/d' \
   | sed -e '/CREATE SCHEMA apgcc;/d' \
   | sed -e '/ALTER SCHEMA apgcc OWNER TO rdsadmin;/d'
 _log "...Done"
 
 
 # Verify the restore file isn't empty before continuing
-[ -s "$RESTORE_FILE" ] || fail "Error dump file downloaded from s3 has no data" 2
+[ -s "$RESTORE_DIR" ] || fail "Error dump file downloaded from s3 has no data" 2
 
 
 # Create the RDS restore instance
@@ -239,7 +239,7 @@ RESTORE_ENDPOINT=$(aws rds describe-db-instances \
 
 _log "Restoring Postgres backup..."
 
-psql --set ON_ERROR_STOP=on -h "$RESTORE_ENDPOINT" -U "$RDS_USERNAME" -d "$DB_NAME" < "$RESTORE_FILE"
+psql --set ON_ERROR_STOP=on -h "$RESTORE_ENDPOINT" -U "$RDS_USERNAME" -d "$DB_NAME" < "$RESTORE_DIR"
 _log "...Done"
 
 # Check in on success
