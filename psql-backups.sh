@@ -115,7 +115,7 @@ _log "Taking the backup..."
 
 export PGPASSWORD=$RDS_PASSWORD
 if [[ "$majorVersion" == "9" ]]; then
-  pg_dump -Fd -Z0 -j 3 -h "$RDS_ENDPOINT" -U "$RDS_IAM_AUTH_USERNAME" -d "$DB_NAME" -f "$DUMP_DIR" -N apgcc
+  pg_dump -Fd -Z6 -j 4 -h "$RDS_ENDPOINT" -U "$RDS_IAM_AUTH_USERNAME" -d "$DB_NAME" -f "$DUMP_DIR" -N apgcc
 else
   pg_dumpall --globals-only -U "$RDS_USERNAME" -h "$RDS_ENDPOINT" -f "$DUMP_DIR"
 fi
@@ -126,13 +126,13 @@ _log "...Done"
 [ -s "$DUMP_DIR" ] || fail "Error dump directory has no data" 2
 
 # Zip backup directory
-_log "Use tar to compress dump directory to file"
-tar -zcvf "$DUMP_DIR.tar.gz" "$DUMP_DIR"
+# _log "Use tar to compress dump directory to file"
+# tar -zcvf "$DUMP_DIR.tar.gz" "$DUMP_DIR"
 
 # Upload it to s3
 _log "Copying dump file to s3 bucket: s3://$BACKUPS_BUCKET/$SERVICE_NAME/rds/"
 # shellcheck disable=SC2086
-aws s3 cp $PROFILE_ARG --region "$BACKUPS_BUCKET_REGION" --only-show-errors "$DUMP_DIR.tar.gz" "s3://${BACKUPS_BUCKET}/${SERVICE_NAME}/rds/" 
+aws s3 cp $PROFILE_ARG --region "$BACKUPS_BUCKET_REGION" --only-show-errors "$DUMP_DIR" "s3://${BACKUPS_BUCKET}/${SERVICE_NAME}/rds/" --recursive
 
 
 if [[ "$majorVersion" -lt "10" ]]; then 
