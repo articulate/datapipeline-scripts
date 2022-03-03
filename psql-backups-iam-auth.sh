@@ -121,11 +121,11 @@ if [[ "$IAM_AUTH_ENABLED" == "true" ]]; then
   PGPASSWORD="$(aws rds generate-db-auth-token --hostname="$RDS_ENDPOINT"  --port=5432 --username="$RDS_IAM_AUTH_USERNAME" --region="$AWS_REGION")"
   export PGPASSWORD
   wget https://s3.amazonaws.com/rds-downloads/rds-ca-2019-root.pem
-  pg_dump -Fd -Z6 -j 4 -h "$RDS_ENDPOINT" -U "$RDS_IAM_AUTH_USERNAME" -d "$DB_NAME" -f "$DUMP_DIR" -N apgcc
+  pg_dump -Fd -Z2 -j 4 -h "$RDS_ENDPOINT" -U "$RDS_IAM_AUTH_USERNAME" -d "$DB_NAME" -f "$DUMP_DIR" -N apgcc
 else
   _log "Connect via username and password..."
   export PGPASSWORD="$RDS_PASSWORD"
-  pg_dump -Fd -Z6 -j 4 -h "$RDS_ENDPOINT" -U "$RDS_USERNAME" -d "$DB_NAME" -f "$DUMP_DIR" -N apgcc
+  pg_dump -Fd -Z2 -j 4 -h "$RDS_ENDPOINT" -U "$RDS_USERNAME" -d "$DB_NAME" -f "$DUMP_DIR" -N apgcc
 fi
 
 _log "...Done"
