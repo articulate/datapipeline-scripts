@@ -115,7 +115,7 @@ _log "Taking the backup..."
 
 export PGPASSWORD=$RDS_PASSWORD
 if [[ "$majorVersion" == "9" ]]; then
-  pg_dump -Fc -h "$RDS_ENDPOINT" -U "$RDS_IAM_AUTH_USERNAME" -d "$DB_NAME" -f "$DUMP_FILE" -N apgcc
+  pg_dump -Fc -h "$RDS_ENDPOINT" -U "$RDS_USERNAME" -d "$DB_NAME" -f "$DUMP_FILE" -N apgcc
 else
   pg_dumpall --globals-only -U "$RDS_USERNAME" -h "$RDS_ENDPOINT" -f "$DUMP_FILE"
 fi
@@ -128,7 +128,7 @@ _log "...Done"
 # Upload it to s3
 _log "Copying dump file to s3 bucket: s3://$BACKUPS_BUCKET/$SERVICE_NAME/rds/"
 # shellcheck disable=SC2086
-aws s3 cp $PROFILE_ARG --region "$BACKUPS_BUCKET_REGION" --only-show-errors "$DUMP_FILE.tar.gz" "s3://${BACKUPS_BUCKET}/${SERVICE_NAME}/rds/"
+aws s3 cp $PROFILE_ARG --region "$BACKUPS_BUCKET_REGION" --only-show-errors "$DUMP_FILE" "s3://${BACKUPS_BUCKET}/${SERVICE_NAME}/rds/"
 
 if [[ "$majorVersion" -lt "10" ]]; then 
   _log "Engine version is below 10. Skipping restore test..."
