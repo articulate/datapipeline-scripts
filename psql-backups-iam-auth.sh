@@ -7,6 +7,8 @@
 set -uo pipefail
 
 export AWS_DEFAULT_REGION="$AWS_REGION"
+export START_DATE
+START_DATE=$(date -u +"%Y%m%d-%H%M")
 
 _log() {
   echo "$(date -u +"%Y-%m-%dT%H:%M:%S%Z") $1"
@@ -51,9 +53,17 @@ cleanup_on_exit() {
 
 trap cleanup_on_exit EXIT
 
-DB_CLUSTER_IDENTIFIER="${DB_ENGINE}-${SERVICE_NAME}-auto-restore-cluster"
-DB_INSTANCE_IDENTIFIER="${DB_ENGINE}-${SERVICE_NAME}-auto-restore"
-DUMP="${SERVICE_NAME}-$(date +%Y_%m_%d_%H%M%S)"
+if [[ ${#SERVICE_NAME} -ge 30  ]]
+then 
+  # DB_CLUSTER_IDENTIFIER can only be a max of 63 characters
+  TRIM_SERVICE_NAME=${SERVICE_NAME:0:29}
+else
+  TRIM_SERVICE_NAME=$SERVICE_NAME
+fi
+
+DB_CLUSTER_IDENTIFIER="backup-test-cluster-${TRIM_SERVICE_NAME}-${START_DATE}"
+DB_INSTANCE_IDENTIFIER="backup-test-${TRIM_SERVICE_NAME}-${START_DATE}"
+DUMP="${SERVICE_NAME}-${START_DATE}"
 RESTORE_FILE=restore.sql
 
 if [[ "${USE_BACKUPS_ACCOUNT:-true}" == "true" ]]
@@ -147,10 +157,8 @@ pg_restore -x "$DUMP_FILE" -f "$RESTORE_FILE" | sed -e '/COMMENT ON EXTENSION/d'
   | sed -e '/ALTER SCHEMA apgcc OWNER TO rdsadmin;/d'
 _log "...Done"
 
-
-# Verify the restore file isn't empty before continuing
-[ -s "$RESTORE_FILE" ] || fail "Error dump file downloaded from s3 has no data" 2
-
+# Verify the restore directory isn't empty before continuing
+[ -s "$RESTORE_FILE" ] || fail "Error altered dump file has no data" 2
 
 # Create the RDS restore instance
 _log "Creating DB restore cluster and instance with values:"
@@ -161,7 +169,6 @@ _log "engine: $DB_ENGINE"
 _log "username: $RDS_USERNAME"
 _log "storage: $RDS_STORAGE_SIZE"
 _log "engine version: $DB_ENGINE_VERSION"
-
 
 PGPASSWORD=$RDS_PASSWORD
 
