@@ -140,7 +140,7 @@ _log "...Done"
 # Upload it to s3
 _log "Copying dump file to s3 bucket: s3://$BACKUPS_BUCKET/$SERVICE_NAME/rds/"
 # shellcheck disable=SC2086
-aws s3 cp $PROFILE_ARG --region "$BACKUPS_BUCKET_REGION" --only-show-errors "$DUMP_DIR" "s3://${BACKUPS_BUCKET}/${SERVICE_NAME}/rds/" --recursive
+aws s3 cp $PROFILE_ARG --region "$BACKUPS_BUCKET_REGION" --only-show-errors "$DUMP_DIR" "s3://${BACKUPS_BUCKET}/${SERVICE_NAME}/rds/${DUMP_DIR}/" --recursive
 
 if [[ "$majorVersion"  -lt "10" ]]; then 
   _log "Engine version is below 10. Skipping restore test..."
